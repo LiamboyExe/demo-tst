@@ -4,6 +4,7 @@ import { Copy, Link2, Nfc, Pencil, Plus, Trash2 } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import InputError from '@/components/InputError.vue';
+import MemberSearchSelect from '@/components/MemberSearchSelect.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -334,7 +335,7 @@ async function copyLink(url: string): Promise<void> {
 
     <Dialog v-model:open="assignOpen">
         <DialogContent>
-            <form class="space-y-4" @submit.prevent="submitAssign">
+            <form class="min-w-0 space-y-4" @submit.prevent="submitAssign">
                 <DialogHeader>
                     <DialogTitle>Assign NFC card</DialogTitle>
                     <DialogDescription>
@@ -345,23 +346,12 @@ async function copyLink(url: string): Promise<void> {
 
                 <div class="space-y-1.5">
                     <Label for="assign_member">Member</Label>
-                    <select
+                    <MemberSearchSelect
                         id="assign_member"
-                        v-model.number="assignForm.member_id"
-                        :class="selectClass"
+                        v-model="assignForm.member_id"
+                        :members="membersWithoutCards"
                         :disabled="!membersWithoutCards.length"
-                    >
-                        <option :value="0" disabled>
-                            Select a member without a card
-                        </option>
-                        <option
-                            v-for="member in membersWithoutCards"
-                            :key="member.id"
-                            :value="member.id"
-                        >
-                            {{ member.full_name }} — {{ member.branch?.name }}
-                        </option>
-                    </select>
+                    />
                     <InputError :message="assignForm.errors.member_id" />
                     <p
                         v-if="!membersWithoutCards.length"

@@ -455,7 +455,7 @@ onUnmounted(() => {
         </Card>
 
         <!-- Mobile skeleton cards -->
-        <div v-if="isLoading" class="flex flex-col gap-3 md:hidden">
+        <div v-if="isLoading" class="flex flex-col gap-3 lg:hidden">
             <Card
                 v-for="i in SKELETON_COUNT"
                 :key="i"
@@ -505,7 +505,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Mobile real cards -->
-        <div v-else class="flex flex-col gap-3 md:hidden">
+        <div v-else class="flex flex-col gap-3 lg:hidden">
             <Card
                 v-for="member in members.data"
                 :key="member.id"
@@ -619,18 +619,36 @@ onUnmounted(() => {
         </div>
 
         <!-- Desktop skeleton table -->
-        <Card v-if="isLoading" class="hidden overflow-hidden py-0 md:block">
+        <Card v-if="isLoading" class="hidden overflow-hidden py-0 lg:block">
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b bg-muted/40 text-left">
-                            <th class="px-4 py-3 font-medium">Member</th>
-                            <th class="px-4 py-3 font-medium">Territory</th>
-                            <th class="px-4 py-3 font-medium">Hood</th>
-                            <th class="px-4 py-3 font-medium">Position</th>
-                            <th class="px-4 py-3 font-medium">Status</th>
-                            <th class="px-4 py-3 font-medium">Joined</th>
-                            <th class="px-4 py-3 text-right font-medium">
+                            <th class="px-3 py-3 font-medium xl:px-4">
+                                Member
+                            </th>
+                            <th class="px-3 py-3 font-medium xl:px-4">
+                                Territory
+                            </th>
+                            <th
+                                class="hidden px-3 py-3 font-medium xl:table-cell xl:px-4"
+                            >
+                                Hood
+                            </th>
+                            <th class="px-3 py-3 font-medium xl:px-4">
+                                Position
+                            </th>
+                            <th class="px-3 py-3 font-medium xl:px-4">
+                                Status
+                            </th>
+                            <th
+                                class="hidden px-3 py-3 font-medium xl:table-cell xl:px-4"
+                            >
+                                Joined
+                            </th>
+                            <th
+                                class="px-3 py-3 text-right font-medium xl:px-4"
+                            >
                                 Actions
                             </th>
                         </tr>
@@ -642,7 +660,7 @@ onUnmounted(() => {
                             class="border-b last:border-0"
                         >
                             <!-- Member cell -->
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 xl:px-4">
                                 <div class="flex items-center gap-3">
                                     <div
                                         class="size-9 shrink-0 animate-pulse rounded-full bg-muted"
@@ -652,43 +670,43 @@ onUnmounted(() => {
                                             class="h-4 w-32 animate-pulse rounded bg-muted"
                                         />
                                         <div
-                                            class="h-3 w-44 animate-pulse rounded bg-muted"
+                                            class="hidden h-3 w-44 animate-pulse rounded bg-muted xl:block"
                                         />
                                     </div>
                                 </div>
                             </td>
                             <!-- Territory -->
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 xl:px-4">
                                 <div
                                     class="h-4 w-24 animate-pulse rounded bg-muted"
                                 />
                             </td>
                             <!-- Hood -->
-                            <td class="px-4 py-3">
+                            <td class="hidden px-3 py-3 xl:table-cell xl:px-4">
                                 <div
                                     class="h-4 w-20 animate-pulse rounded bg-muted"
                                 />
                             </td>
                             <!-- Position -->
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 xl:px-4">
                                 <div
                                     class="h-5 w-16 animate-pulse rounded-full bg-muted"
                                 />
                             </td>
                             <!-- Status -->
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 xl:px-4">
                                 <div
                                     class="h-5 w-14 animate-pulse rounded-full bg-muted"
                                 />
                             </td>
                             <!-- Joined -->
-                            <td class="px-4 py-3">
+                            <td class="hidden px-3 py-3 xl:table-cell xl:px-4">
                                 <div
                                     class="h-3.5 w-20 animate-pulse rounded bg-muted"
                                 />
                             </td>
                             <!-- Actions -->
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 xl:px-4">
                                 <div class="flex justify-end gap-1">
                                     <div
                                         class="size-7 animate-pulse rounded bg-muted"
@@ -718,18 +736,36 @@ onUnmounted(() => {
         </Card>
 
         <!-- Desktop real table -->
-        <Card v-else class="hidden overflow-hidden py-0 md:block">
+        <Card v-else class="hidden overflow-hidden py-0 lg:block">
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b bg-muted/40 text-left">
-                            <th class="px-4 py-3 font-medium">Member</th>
-                            <th class="px-4 py-3 font-medium">Territory</th>
-                            <th class="px-4 py-3 font-medium">Hood</th>
-                            <th class="px-4 py-3 font-medium">Position</th>
-                            <th class="px-4 py-3 font-medium">Status</th>
-                            <th class="px-4 py-3 font-medium">Joined</th>
-                            <th class="px-4 py-3 text-right font-medium">
+                            <th class="px-3 py-3 font-medium xl:px-4">
+                                Member
+                            </th>
+                            <th class="px-3 py-3 font-medium xl:px-4">
+                                Territory
+                            </th>
+                            <th
+                                class="hidden px-3 py-3 font-medium xl:table-cell xl:px-4"
+                            >
+                                Hood
+                            </th>
+                            <th class="px-3 py-3 font-medium xl:px-4">
+                                Position
+                            </th>
+                            <th class="px-3 py-3 font-medium xl:px-4">
+                                Status
+                            </th>
+                            <th
+                                class="hidden px-3 py-3 font-medium xl:table-cell xl:px-4"
+                            >
+                                Joined
+                            </th>
+                            <th
+                                class="px-3 py-3 text-right font-medium xl:px-4"
+                            >
                                 Actions
                             </th>
                         </tr>
@@ -740,7 +776,7 @@ onUnmounted(() => {
                             :key="member.id"
                             class="border-b last:border-0 hover:bg-muted/20"
                         >
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 xl:px-4">
                                 <div class="flex items-center gap-3">
                                     <div
                                         class="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold"
@@ -752,31 +788,31 @@ onUnmounted(() => {
                                             {{ member.full_name }}
                                         </p>
                                         <p
-                                            class="truncate text-xs text-muted-foreground"
+                                            class="hidden truncate text-xs text-muted-foreground xl:block"
                                         >
                                             {{ member.email }}
                                         </p>
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 xl:px-4">
                                 {{ member.branch?.name ?? '—' }}
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="hidden px-3 py-3 xl:table-cell xl:px-4">
                                 {{ member.hood?.name ?? '—' }}
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 xl:px-4">
                                 <StatusBadge :status="member.membership_type" />
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 xl:px-4">
                                 <StatusBadge :status="member.status" />
                             </td>
                             <td
-                                class="px-4 py-3 font-mono text-xs text-muted-foreground"
+                                class="hidden px-3 py-3 font-mono text-xs whitespace-nowrap text-muted-foreground xl:table-cell xl:px-4"
                             >
                                 {{ formatDate(member.join_date) }}
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 xl:px-4">
                                 <div class="flex justify-end gap-1">
                                     <Button
                                         variant="ghost"
