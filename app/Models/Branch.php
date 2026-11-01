@@ -30,6 +30,14 @@ class Branch extends Model
     use HasFactory;
 
     /**
+     * @return HasMany<Hood, $this>
+     */
+    public function hoods(): HasMany
+    {
+        return $this->hasMany(Hood::class);
+    }
+
+    /**
      * @return HasMany<Member, $this>
      */
     public function members(): HasMany

@@ -29,6 +29,18 @@ function badgeClass(value: string): string {
             return 'border-zinc-500/30 bg-zinc-500/10 text-zinc-300';
         case 'Lost':
             return 'border-rose-400/30 bg-rose-400/10 text-rose-300';
+        case 'High Table Council':
+            return 'border-amber-400/40 bg-amber-400/15 text-amber-300 font-semibold';
+        case 'Shot Caller':
+            return 'border-purple-400/40 bg-purple-400/15 text-purple-300 font-medium';
+        case 'Alas':
+            return 'border-indigo-400/40 bg-indigo-400/15 text-indigo-300 font-medium';
+        case 'Pointman':
+            return 'border-sky-400/40 bg-sky-400/15 text-sky-300 font-medium';
+        case 'Carnal':
+            return 'border-emerald-400/40 bg-emerald-400/15 text-emerald-300 font-medium';
+        case 'Carnala':
+            return 'border-pink-400/40 bg-pink-400/15 text-pink-300 font-medium';
         case 'Premium':
             return 'border-violet-400/30 bg-violet-400/10 text-violet-300';
         case 'Student':
@@ -85,7 +97,7 @@ function badgeClass(value: string): string {
                             class="rounded-full border px-2.5 py-0.5 text-xs font-medium"
                             :class="badgeClass(member.membership_type)"
                         >
-                            {{ member.membership_type }} Member
+                            {{ member.membership_type }}
                         </span>
                         <span
                             class="rounded-full border px-2.5 py-0.5 text-xs font-medium"

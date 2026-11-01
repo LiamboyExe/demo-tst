@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, setLayoutProps, useForm } from '@inertiajs/vue3';
 import {
     Building2,
     Mail,
@@ -9,6 +9,7 @@ import {
     Plus,
     Trash2,
     UserRound,
+    Users,
 } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
@@ -31,23 +32,22 @@ import {
     store as storeBranch,
     update as updateBranch,
 } from '@/routes/branches';
+import { index as membersIndex } from '@/routes/members';
 import type { Branch } from '@/types';
-
-defineOptions({
-    layout: {
-        breadcrumbs: [
-            {
-                title: 'Branches',
-                href: branchesIndex(),
-            },
-        ],
-    },
-});
 
 const props = defineProps<{
     branches: Branch[];
     isMainAdmin: boolean;
 }>();
+
+setLayoutProps({
+    breadcrumbs: [
+        {
+            title: props.isMainAdmin ? 'Territories' : 'Territory',
+            href: branchesIndex(),
+        },
+    ],
+});
 
 const createOpen = ref(false);
 const editOpen = ref(false);
@@ -105,6 +105,14 @@ function openEdit(branch: Branch): void {
     editOpen.value = true;
 }
 
+function handlePhoneInput(form: { phone: string }, event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const val = target.value;
+    if (val.startsWith('09')) {
+        form.phone = val.replace(/\D/g, '').slice(0, 11);
+    }
+}
+
 function submitCreate(): void {
     createForm.post(storeBranch().url, {
         preserveScroll: true,
@@ -150,7 +158,7 @@ function destroy(): void {
 </script>
 
 <template>
-    <Head title="Branches" />
+    <Head :title="isMainAdmin ? 'Territories' : 'Territory'" />
 
     <div class="flex flex-col gap-6 p-4 md:p-6">
         <div
@@ -160,22 +168,27 @@ function destroy(): void {
                 <p
                     class="font-mono text-[11px] tracking-[0.2em] text-muted-foreground uppercase"
                 >
-                    Network
+                    {{ isMainAdmin ? 'Network' : 'Assigned Territory' }}
                 </p>
                 <h1 class="mt-1 text-2xl font-semibold tracking-tight">
-                    Branches
+                    {{ isMainAdmin ? 'Territories' : 'Territory' }}
                 </h1>
                 <p class="mt-1 text-sm text-muted-foreground">
-                    {{ branches.length }} branch{{
-                        branches.length === 1 ? '' : 'es'
-                    }}
-                    · {{ totalMembers }} members
+                    <template v-if="isMainAdmin">
+                        {{ branches.length }} territor{{
+                            branches.length === 1 ? 'y' : 'ies'
+                        }}
+                        · {{ totalMembers }} members
+                    </template>
+                    <template v-else>
+                        {{ branches[0]?.name ?? 'Territory' }} · {{ totalMembers }} members
+                    </template>
                 </p>
             </div>
 
             <Button v-if="isMainAdmin" @click="openCreate">
                 <Plus class="size-4" />
-                New branch
+                New territory
             </Button>
         </div>
 
@@ -212,7 +225,14 @@ function destroy(): void {
 
                 <CardContent class="space-y-4">
                     <div class="grid grid-cols-3 gap-2 text-center">
-                        <div class="rounded-lg border p-2">
+                        <Link
+                            :href="
+                                membersIndex({
+                                    query: { branch: branch.id },
+                                })
+                            "
+                            class="rounded-lg border p-2 transition-colors hover:bg-muted/60"
+                        >
                             <p class="font-mono text-lg font-semibold">
                                 {{ branch.members_count ?? 0 }}
                             </p>
@@ -221,8 +241,18 @@ function destroy(): void {
                             >
                                 Members
                             </p>
-                        </div>
-                        <div class="rounded-lg border p-2">
+                        </Link>
+                        <Link
+                            :href="
+                                membersIndex({
+                                    query: {
+                                        branch: branch.id,
+                                        status: 'Active',
+                                    },
+                                })
+                            "
+                            class="rounded-lg border p-2 transition-colors hover:bg-muted/60"
+                        >
                             <p
                                 class="font-mono text-lg font-semibold text-emerald-600 dark:text-emerald-400"
                             >
@@ -233,18 +263,34 @@ function destroy(): void {
                             >
                                 Active
                             </p>
-                        </div>
-                        <div class="rounded-lg border p-2">
-                            <p
-                                class="font-mono text-lg font-semibold text-amber-600 dark:text-amber-400"
-                            >
-                                {{ branch.pending_members_count ?? 0 }}
+                        </Link>
+                        <div
+                            class="rounded-lg border p-2"
+                        >
+                            <p class="font-mono text-lg font-semibold text-violet-600 dark:text-violet-400">
+                                {{ branch.hoods_count ?? branch.hoods?.length ?? 0 }}
                             </p>
                             <p
                                 class="text-[10px] text-muted-foreground uppercase"
                             >
-                                Pending
+                                Hoods
                             </p>
+                        </div>
+                    </div>
+
+                    <!-- Hoods list -->
+                    <div v-if="branch.hoods?.length" class="space-y-1">
+                        <p class="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">Hoods</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            <Link
+                                v-for="hood in branch.hoods"
+                                :key="hood.id"
+                                :href="membersIndex({ query: { branch: branch.id, hood: hood.id } })"
+                                class="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs transition-colors hover:bg-muted/60"
+                            >
+                                {{ hood.name }}
+                                <span class="font-mono text-muted-foreground">{{ hood.members_count ?? 0 }}</span>
+                            </Link>
                         </div>
                     </div>
 
@@ -272,26 +318,39 @@ function destroy(): void {
                     </div>
 
                     <div
-                        v-if="isMainAdmin"
-                        class="flex items-center justify-end gap-2 border-t pt-3"
+                        class="flex flex-wrap items-center gap-2 border-t pt-3"
                     >
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            @click="openEdit(branch)"
-                        >
-                            <Pencil class="size-3.5" />
-                            Edit
+                        <Button as-child variant="outline" size="sm">
+                            <Link
+                                :href="
+                                    membersIndex({
+                                        query: { branch: branch.id },
+                                    })
+                                "
+                            >
+                                <Users class="size-3.5" />
+                                View members
+                            </Link>
                         </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            class="text-destructive hover:text-destructive"
-                            @click="confirmDelete(branch)"
-                        >
-                            <Trash2 class="size-3.5" />
-                            Delete
-                        </Button>
+                        <template v-if="isMainAdmin">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                @click="openEdit(branch)"
+                            >
+                                <Pencil class="size-3.5" />
+                                Edit
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                @click="confirmDelete(branch)"
+                            >
+                                <Trash2 class="size-3.5" />
+                                Delete
+                            </Button>
+                        </template>
                     </div>
                 </CardContent>
             </Card>
@@ -300,7 +359,7 @@ function destroy(): void {
                 v-if="!branches.length"
                 class="flex min-h-48 items-center justify-center border-dashed"
             >
-                <p class="text-sm text-muted-foreground">No branches found.</p>
+                <p class="text-sm text-muted-foreground">No territories found.</p>
             </Card>
         </div>
     </div>
@@ -309,15 +368,15 @@ function destroy(): void {
         <DialogContent class="sm:max-w-2xl">
             <form class="space-y-4" @submit.prevent="submitCreate">
                 <DialogHeader>
-                    <DialogTitle>New branch</DialogTitle>
+                    <DialogTitle>New territory</DialogTitle>
                     <DialogDescription>
-                        Create a branch and its admin login in one step.
+                        Create a territory and its admin login in one step.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="space-y-1.5">
-                        <Label for="branch_name">Branch name</Label>
+                        <Label for="branch_name">Territory name</Label>
                         <Input id="branch_name" v-model="createForm.name" />
                         <InputError :message="createForm.errors.name" />
                     </div>
@@ -338,16 +397,27 @@ function destroy(): void {
                         <InputError :message="createForm.errors.manager" />
                     </div>
                     <div class="space-y-1.5">
-                        <Label for="branch_phone">Phone</Label>
-                        <Input id="branch_phone" v-model="createForm.phone" />
+                        <Label for="branch_phone">Phone / Contact No. <span class="text-destructive">*</span></Label>
+                        <Input
+                            id="branch_phone"
+                            v-model="createForm.phone"
+                            type="tel"
+                            required
+                            :maxlength="createForm.phone.startsWith('09') ? 11 : 20"
+                            placeholder="09171234567 or (02) 8555-1234"
+                            @input="handlePhoneInput(createForm, $event)"
+                        />
+                        <p class="text-[11px] text-muted-foreground">Mobile (09XXXXXXXXX, max 11 digits) or landline (02) 8XXX-XXXX</p>
                         <InputError :message="createForm.errors.phone" />
                     </div>
                     <div class="space-y-1.5 sm:col-span-2">
-                        <Label for="branch_email">Email</Label>
+                        <Label for="branch_email">Email <span class="text-destructive">*</span></Label>
                         <Input
                             id="branch_email"
                             type="email"
                             v-model="createForm.email"
+                            required
+                            placeholder="territory@templestreet.local"
                         />
                         <InputError :message="createForm.errors.email" />
                     </div>
@@ -406,7 +476,7 @@ function destroy(): void {
                         Cancel
                     </Button>
                     <Button type="submit" :disabled="createForm.processing">
-                        Create branch
+                        Create territory
                     </Button>
                 </DialogFooter>
             </form>
@@ -417,16 +487,16 @@ function destroy(): void {
         <DialogContent class="sm:max-w-2xl">
             <form class="space-y-4" @submit.prevent="submitEdit">
                 <DialogHeader>
-                    <DialogTitle>Edit branch</DialogTitle>
+                    <DialogTitle>Edit territory</DialogTitle>
                     <DialogDescription>
-                        Update branch details or reset the branch admin
+                        Update territory details or reset the admin
                         password.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="space-y-1.5">
-                        <Label for="edit_branch_name">Branch name</Label>
+                        <Label for="edit_branch_name">Territory name</Label>
                         <Input id="edit_branch_name" v-model="editForm.name" />
                         <InputError :message="editForm.errors.name" />
                     </div>
@@ -447,19 +517,27 @@ function destroy(): void {
                         <InputError :message="editForm.errors.manager" />
                     </div>
                     <div class="space-y-1.5">
-                        <Label for="edit_branch_phone">Phone</Label>
+                        <Label for="edit_branch_phone">Phone / Contact No. <span class="text-destructive">*</span></Label>
                         <Input
                             id="edit_branch_phone"
                             v-model="editForm.phone"
+                            type="tel"
+                            required
+                            :maxlength="editForm.phone.startsWith('09') ? 11 : 20"
+                            placeholder="09171234567 or (02) 8555-1234"
+                            @input="handlePhoneInput(editForm, $event)"
                         />
+                        <p class="text-[11px] text-muted-foreground">Mobile (09XXXXXXXXX, max 11 digits) or landline (02) 8XXX-XXXX</p>
                         <InputError :message="editForm.errors.phone" />
                     </div>
                     <div class="space-y-1.5 sm:col-span-2">
-                        <Label for="edit_branch_email">Email</Label>
+                        <Label for="edit_branch_email">Email <span class="text-destructive">*</span></Label>
                         <Input
                             id="edit_branch_email"
                             type="email"
                             v-model="editForm.email"
+                            required
+                            placeholder="territory@templestreet.local"
                         />
                         <InputError :message="editForm.errors.email" />
                     </div>
@@ -515,10 +593,10 @@ function destroy(): void {
     <Dialog v-model:open="deleteOpen">
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>Delete branch?</DialogTitle>
+                <DialogTitle>Delete territory?</DialogTitle>
                 <DialogDescription>
                     {{ deleteTarget?.name }} will be deleted along with its
-                    members, NFC cards and admin account. This cannot be undone.
+                    hoods, members, NFC cards and admin account. This cannot be undone.
                 </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -526,7 +604,7 @@ function destroy(): void {
                     Cancel
                 </Button>
                 <Button variant="destructive" @click="destroy">
-                    Delete branch
+                    Delete territory
                 </Button>
             </DialogFooter>
         </DialogContent>

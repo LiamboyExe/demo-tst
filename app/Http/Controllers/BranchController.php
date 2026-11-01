@@ -32,8 +32,12 @@ class BranchController extends Controller
                 'members as inactive_members_count' => fn (Builder $query) => $query->where('status', MemberStatus::Inactive),
                 'members as pending_members_count' => fn (Builder $query) => $query->where('status', MemberStatus::Pending),
                 'admins as local_admins_count' => fn (Builder $query) => $query->where('role', UserRole::Local),
+                'hoods',
             ])
-            ->with(['admins' => fn ($query) => $query->where('role', UserRole::Local)->select('id', 'name', 'username', 'branch_id')])
+            ->with([
+                'admins' => fn ($query) => $query->where('role', UserRole::Local)->select('id', 'name', 'username', 'branch_id'),
+                'hoods' => fn ($query) => $query->withCount('members')->orderBy('name'),
+            ])
             ->orderBy('name')
             ->get();
 
@@ -54,19 +58,37 @@ class BranchController extends Controller
             'name' => ['required', 'string', 'max:100'],
             'location' => ['required', 'string', 'max:150'],
             'manager' => ['required', 'string', 'max:100'],
-            'phone' => ['nullable', 'string', 'max:30'],
-            'email' => ['nullable', 'string', 'email', 'max:100'],
+            'phone' => [
+                'required',
+                'string',
+                'max:30',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (str_starts_with((string) $value, '09')) {
+                        $digits = preg_replace('/\D/', '', (string) $value);
+                        if (strlen((string) $value) > 11 || strlen($digits) !== 11) {
+                            $fail('Mobile numbers starting with 09 must be exactly 11 digits and cannot exceed 11 digits.');
+                        }
+                    }
+                },
+                'regex:/^(09\d{9}|\+639\d{9}|\(0\d{1,2}\)\s?\d{3,4}[-\s]?\d{4}|0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}|\d{4}[-\s]?\d{4})$/',
+            ],
+            'email' => [
+                'required',
+                'string',
+                app()->runningUnitTests() ? 'email' : 'email:rfc,dns',
+                'max:100',
+            ],
             'admin_username' => ['required', 'string', 'max:60', 'unique:users,username'],
             'admin_password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
+        ], $this->messages());
 
         $branch = DB::transaction(function () use ($validated): Branch {
             $branch = Branch::create([
                 'name' => $validated['name'],
                 'location' => $validated['location'],
                 'manager' => $validated['manager'],
-                'phone' => $validated['phone'] ?? '',
-                'email' => $validated['email'] ?? '',
+                'phone' => $validated['phone'],
+                'email' => $validated['email'],
             ]);
 
             User::create([
@@ -84,7 +106,7 @@ class BranchController extends Controller
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __('Branch ":name" was created with its admin account.', ['name' => $branch->name]),
+            'message' => __('Territory ":name" was created with its admin account.', ['name' => $branch->name]),
         ]);
 
         return back();
@@ -101,17 +123,35 @@ class BranchController extends Controller
             'name' => ['required', 'string', 'max:100'],
             'location' => ['required', 'string', 'max:150'],
             'manager' => ['required', 'string', 'max:100'],
-            'phone' => ['nullable', 'string', 'max:30'],
-            'email' => ['nullable', 'string', 'email', 'max:100'],
+            'phone' => [
+                'required',
+                'string',
+                'max:30',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (str_starts_with((string) $value, '09')) {
+                        $digits = preg_replace('/\D/', '', (string) $value);
+                        if (strlen((string) $value) > 11 || strlen($digits) !== 11) {
+                            $fail('Mobile numbers starting with 09 must be exactly 11 digits and cannot exceed 11 digits.');
+                        }
+                    }
+                },
+                'regex:/^(09\d{9}|\+639\d{9}|\(0\d{1,2}\)\s?\d{3,4}[-\s]?\d{4}|0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}|\d{4}[-\s]?\d{4})$/',
+            ],
+            'email' => [
+                'required',
+                'string',
+                app()->runningUnitTests() ? 'email' : 'email:rfc,dns',
+                'max:100',
+            ],
             'admin_password' => ['nullable', 'string', 'min:8', 'confirmed'],
-        ]);
+        ], $this->messages());
 
         $branch->update([
             'name' => $validated['name'],
             'location' => $validated['location'],
             'manager' => $validated['manager'],
-            'phone' => $validated['phone'] ?? '',
-            'email' => $validated['email'] ?? '',
+            'phone' => $validated['phone'],
+            'email' => $validated['email'],
         ]);
 
         if (filled($validated['admin_password'] ?? null)) {
@@ -119,7 +159,7 @@ class BranchController extends Controller
 
             if ($admin === null) {
                 throw ValidationException::withMessages([
-                    'admin_password' => __('This branch has no admin account to reset.'),
+                    'admin_password' => __('This territory has no admin account to reset.'),
                 ]);
             }
 
@@ -128,10 +168,23 @@ class BranchController extends Controller
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __('Branch ":name" was updated.', ['name' => $branch->name]),
+            'message' => __('Territory ":name" was updated.', ['name' => $branch->name]),
         ]);
 
         return back();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function messages(): array
+    {
+        return [
+            'phone.required' => 'The territory head contact number is required.',
+            'phone.regex' => 'Please provide a valid Philippine mobile (e.g. 09171234567) or landline (e.g. (02) 8555-1234).',
+            'email.required' => 'The territory email address is required.',
+            'email.email' => 'Please provide a valid email address.',
+        ];
     }
 
     /**

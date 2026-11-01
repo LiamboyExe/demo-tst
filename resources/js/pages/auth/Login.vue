@@ -23,6 +23,23 @@ defineProps<{
     status?: string;
     canResetPassword: boolean;
 }>();
+function fillDemo(username: string, pass: string): void {
+    const emailEl = document.getElementById('email') as HTMLInputElement | null;
+    const passEl = document.getElementById('password') as HTMLInputElement | null;
+
+    if (emailEl) {
+        emailEl.value = username;
+        emailEl.dispatchEvent(new Event('input', { bubbles: true }));
+        emailEl.dispatchEvent(new Event('change', { bubbles: true }));
+        emailEl.focus();
+    }
+
+    if (passEl) {
+        passEl.value = pass;
+        passEl.dispatchEvent(new Event('input', { bubbles: true }));
+        passEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
 </script>
 
 <template>
@@ -102,14 +119,67 @@ defineProps<{
         </div>
 
         <div
-            class="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-center text-xs text-muted-foreground"
+            class="rounded-xl border border-dashed border-border bg-muted/30 p-3.5 text-xs"
         >
-            <p class="mb-1 font-mono text-[11px] tracking-wider uppercase">
-                Demo credentials
-            </p>
-            <p class="font-mono">admin / admin123</p>
-            <p class="font-mono">north_admin / north123</p>
-            <p class="font-mono">south_admin / south123</p>
+            <div class="mb-2.5 flex items-center justify-between">
+                <p class="font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                    Demo Accounts
+                </p>
+                <span class="text-[10px] text-muted-foreground">Click to fill</span>
+            </div>
+
+            <div class="grid gap-2">
+                <button
+                    type="button"
+                    @click="fillDemo('fv_admin', 'fv123456')"
+                    class="flex items-center justify-between rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-accent hover:text-accent-foreground"
+                >
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="font-medium text-foreground">Fairview Admin</span>
+                            <span class="rounded bg-sky-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-sky-600 dark:text-sky-400">Territory</span>
+                        </div>
+                        <p class="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                            fv_admin <span class="text-border">/</span> fv123456
+                        </p>
+                    </div>
+                    <span class="text-[11px] font-medium text-primary">Use &rarr;</span>
+                </button>
+
+                <button
+                    type="button"
+                    @click="fillDemo('ts_admin', 'ts123456')"
+                    class="flex items-center justify-between rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-accent hover:text-accent-foreground"
+                >
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="font-medium text-foreground">Tandang Sora Admin</span>
+                            <span class="rounded bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Territory</span>
+                        </div>
+                        <p class="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                            ts_admin <span class="text-border">/</span> ts123456
+                        </p>
+                    </div>
+                    <span class="text-[11px] font-medium text-primary">Use &rarr;</span>
+                </button>
+
+                <button
+                    type="button"
+                    @click="fillDemo('admin', 'admin123')"
+                    class="flex items-center justify-between rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-accent hover:text-accent-foreground"
+                >
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="font-medium text-foreground">Main Administrator</span>
+                            <span class="rounded bg-primary/10 px-1.5 py-0.2 text-[10px] font-semibold text-primary">Full Access</span>
+                        </div>
+                        <p class="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                            admin <span class="text-border">/</span> admin123
+                        </p>
+                    </div>
+                    <span class="text-[11px] font-medium text-primary">Use &rarr;</span>
+                </button>
+            </div>
         </div>
     </Form>
 </template>

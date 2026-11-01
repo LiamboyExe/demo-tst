@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $branch_id
+ * @property int|null $hood_id
  * @property string $first_name
  * @property string $last_name
  * @property string $email
@@ -38,6 +39,7 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'branch_id',
+    'hood_id',
     'first_name',
     'last_name',
     'email',
@@ -77,6 +79,14 @@ class Member extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * @return BelongsTo<Hood, $this>
+     */
+    public function hood(): BelongsTo
+    {
+        return $this->belongsTo(Hood::class);
     }
 
     /**

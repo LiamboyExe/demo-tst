@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { Building2, CreditCard, LayoutGrid, Shield, Users } from '@lucide/vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
@@ -12,14 +13,41 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import { account, dashboard } from '@/routes';
 import branches from '@/routes/branches';
 import members from '@/routes/members';
 import nfcCards from '@/routes/nfc-cards';
-import type { NavItem } from '@/types';
+import type { NavItem, User } from '@/types';
 
-const mainNavItems: NavItem[] = [
+const { isMobile, setOpenMobile } = useSidebar();
+const page = usePage();
+
+const isMainAdmin = computed(() => {
+    const user = page.props.auth?.user as User | undefined;
+    return user?.role === 'main';
+});
+
+/**
+ * Close the mobile drawer whenever a visit starts, so picking a navigation
+ * item fades the sidebar out instead of leaving it covering the new page.
+ */
+let stopListeningForNavigation: (() => void) | undefined;
+
+onMounted(() => {
+    stopListeningForNavigation = router.on('navigate', () => {
+        if (isMobile.value) {
+            setOpenMobile(false);
+        }
+    });
+});
+
+onUnmounted(() => {
+    stopListeningForNavigation?.();
+});
+
+const mainNavItems = computed<NavItem[]>(() => [
     {
         title: 'Dashboard',
         href: dashboard(),
@@ -31,7 +59,7 @@ const mainNavItems: NavItem[] = [
         icon: Users,
     },
     {
-        title: 'Branches',
+        title: isMainAdmin.value ? 'Territories' : 'Territory',
         href: branches.index(),
         icon: Building2,
     },
@@ -45,7 +73,7 @@ const mainNavItems: NavItem[] = [
         href: account(),
         icon: Shield,
     },
-];
+]);
 </script>
 
 <template>

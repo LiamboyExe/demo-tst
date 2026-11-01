@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Copy, Link2, Nfc, Pencil, Plus, Radio, Trash2 } from '@lucide/vue';
+import { Copy, Link2, Nfc, Pencil, Plus, Trash2 } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import InputError from '@/components/InputError.vue';
@@ -48,7 +48,7 @@ const editOpen = ref(false);
 const deleteOpen = ref(false);
 const editing = ref<NfcCard | null>(null);
 const deleteTarget = ref<NfcCard | null>(null);
-const writingId = ref<number | null>(null);
+
 
 const assignForm = useForm({
     member_id: 0,
@@ -168,18 +168,7 @@ async function copyLink(url: string): Promise<void> {
     }
 }
 
-function simulateWrite(card: NfcCard): void {
-    if (writingId.value !== null) {
-        return;
-    }
 
-    writingId.value = card.id;
-
-    window.setTimeout(() => {
-        writingId.value = null;
-        toast.success(`Card ${card.card_uid} written successfully.`);
-    }, 1600);
-}
 </script>
 
 <template>
@@ -278,7 +267,7 @@ function simulateWrite(card: NfcCard): void {
                     </div>
                 </div>
 
-                <CardContent class="space-y-4 pt-4">
+                <CardContent class="space-y-4 pt-4 pb-4">
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="text-xs text-muted-foreground">
                             Issued {{ formatDate(card.issued_date) }}
@@ -302,7 +291,7 @@ function simulateWrite(card: NfcCard): void {
                         <span class="truncate">{{ card.profile_url }}</span>
                     </a>
 
-                    <div class="flex flex-wrap gap-2">
+                    <div class="flex flex-wrap gap-2 border-t pt-3">
                         <Button
                             variant="outline"
                             size="sm"
@@ -314,37 +303,19 @@ function simulateWrite(card: NfcCard): void {
                         <Button
                             variant="outline"
                             size="sm"
-                            :disabled="writingId !== null"
-                            @click="simulateWrite(card)"
-                        >
-                            <Radio
-                                class="size-3.5"
-                                :class="{
-                                    'animate-pulse text-emerald-500':
-                                        writingId === card.id,
-                                }"
-                            />
-                            {{
-                                writingId === card.id
-                                    ? 'Writing…'
-                                    : 'Simulate write'
-                            }}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
                             @click="openEdit(card)"
                         >
                             <Pencil class="size-3.5" />
                             Edit
                         </Button>
                         <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            class="text-destructive hover:text-destructive"
+                            class="text-destructive hover:bg-destructive/10 hover:text-destructive"
                             @click="confirmDelete(card)"
                         >
                             <Trash2 class="size-3.5" />
+                            Delete
                         </Button>
                     </div>
                 </CardContent>

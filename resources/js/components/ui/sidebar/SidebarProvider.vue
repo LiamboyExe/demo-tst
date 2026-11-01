@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes, Ref } from "vue"
-import { defaultDocument, useEventListener, useMediaQuery, useVModel } from "@vueuse/core"
+import { defaultDocument, useEventListener, useMediaQuery, useMounted, useVModel } from "@vueuse/core"
 import { TooltipProvider } from "reka-ui"
 import { computed, ref } from "vue"
 import { cn } from "@/lib/utils"
@@ -19,7 +19,13 @@ const emits = defineEmits<{
   "update:open": [open: boolean]
 }>()
 
-const isMobile = useMediaQuery("(max-width: 768px)")
+// SSR renders with no viewport, so `useMediaQuery` reports `false`. Only trust
+// its value after mount so the first client render matches the server markup.
+// Otherwise the trigger icon, the mobile sidebar sheet and other viewport
+// dependent branches hydrate with different nodes (hydration mismatches).
+const mediaQueryIsMobile = useMediaQuery("(max-width: 768px)")
+const mounted = useMounted()
+const isMobile = computed(() => mounted.value && mediaQueryIsMobile.value)
 const openMobile = ref(false)
 
 const open = useVModel(props, "open", emits, {

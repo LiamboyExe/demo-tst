@@ -12,7 +12,20 @@ Route::get('/', fn () => redirect()->route(auth()->check() ? 'dashboard' : 'logi
 
 Route::get('p/{member:profile_slug}', [PublicProfileController::class, 'show'])->name('profile.show');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+use Illuminate\Auth\Events\Verified;
+use Illuminate\Http\Request;
+
+Route::middleware(['auth'])->group(function () {
+    Route::post('email/instant-verify', function (Request $request) {
+        $user = $request->user();
+        if ($user && ! $user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+            event(new Verified($user));
+        }
+
+        return redirect()->intended(route('dashboard'));
+    })->name('verification.instant');
+
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('account', AccountController::class)->name('account');
 

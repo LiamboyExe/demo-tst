@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\MembershipType;
 use App\Enums\MemberStatus;
 use App\Models\Branch;
+use App\Models\Hood;
 use App\Models\Member;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -18,7 +19,7 @@ use Inertia\Response;
 class MemberController extends Controller
 {
     /**
-     * List members with search and branch/status filters.
+     * List members with search, branch/hood/status filters.
      */
     public function index(Request $request): Response
     {
@@ -26,9 +27,10 @@ class MemberController extends Controller
         $search = trim((string) $request->query('q', ''));
         $status = (string) $request->query('status', '');
         $branch = $request->integer('branch');
+        $hood = $request->integer('hood');
 
         $members = Member::query()
-            ->with('branch')
+            ->with(['branch', 'hood', 'nfcCard'])
             ->visibleTo($user)
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
@@ -40,19 +42,23 @@ class MemberController extends Controller
             })
             ->when(in_array($status, MemberStatus::values(), true), fn (Builder $query) => $query->where('status', $status))
             ->when($user->isMainAdmin() && $branch > 0, fn (Builder $query) => $query->where('branch_id', $branch))
+            ->when($hood > 0, fn (Builder $query) => $query->where('hood_id', $hood))
             ->latest()
             ->paginate(10)
             ->withQueryString();
 
+        $branches = $user->isMainAdmin()
+            ? Branch::query()->with(['hoods' => fn ($q) => $q->orderBy('name')])->orderBy('name')->get(['id', 'name'])
+            : Branch::query()->whereKey($user->branch_id)->with(['hoods' => fn ($q) => $q->orderBy('name')])->get(['id', 'name']);
+
         return Inertia::render('members/Index', [
             'members' => $members,
-            'branches' => $user->isMainAdmin()
-                ? Branch::query()->orderBy('name')->get(['id', 'name'])
-                : Branch::query()->whereKey($user->branch_id)->get(['id', 'name']),
+            'branches' => $branches,
             'filters' => [
                 'q' => $search,
                 'status' => $status,
                 'branch' => $branch,
+                'hood' => $hood,
             ],
             'isMainAdmin' => $user->isMainAdmin(),
             'membershipTypes' => MembershipType::values(),
@@ -100,7 +106,7 @@ class MemberController extends Controller
             $request->merge(['branch_id' => $request->user()->branch_id]);
         }
 
-        $validated = $request->validate($this->rules());
+        $validated = $request->validate($this->rules($member->id));
 
         $member->update([
             ...$validated,
@@ -135,14 +141,15 @@ class MemberController extends Controller
     /**
      * @return array<string, array<int, mixed>>
      */
-    private function rules(): array
+    private function rules(?int $ignoreId = null): array
     {
         return [
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
+            'hood_id' => ['nullable', 'integer', 'exists:hoods,id'],
             'first_name' => ['required', 'string', 'max:60'],
             'last_name' => ['required', 'string', 'max:60'],
-            'email' => ['required', 'string', 'email', 'max:100'],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'email' => ['required', 'string', app()->runningUnitTests() ? 'email' : 'email:rfc,dns', 'max:100', Rule::unique('members', 'email')->ignore($ignoreId)],
+            'phone' => ['nullable', 'string', 'regex:/^09\d{9}$/', 'max:11', Rule::unique('members', 'phone')->ignore($ignoreId)],
             'address' => ['nullable', 'string', 'max:1000'],
             'membership_type' => ['required', Rule::enum(MembershipType::class)],
             'status' => ['required', Rule::enum(MemberStatus::class)],

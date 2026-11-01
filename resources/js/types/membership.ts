@@ -1,8 +1,23 @@
 import type { User } from './auth';
 
-export type MembershipType = 'Regular' | 'Premium' | 'Student' | 'Senior';
+export type MembershipType =
+    | 'High Table Council'
+    | 'Shot Caller'
+    | 'Alas'
+    | 'Pointman'
+    | 'Carnal'
+    | 'Carnala';
 export type MemberStatus = 'Active' | 'Inactive' | 'Pending';
 export type NfcCardStatus = 'Active' | 'Inactive' | 'Lost';
+
+export type Hood = {
+    id: number;
+    branch_id: number;
+    name: string;
+    members_count?: number;
+    created_at: string;
+    updated_at: string;
+};
 
 export type Branch = {
     id: number;
@@ -15,8 +30,10 @@ export type Branch = {
     active_members_count?: number;
     inactive_members_count?: number;
     pending_members_count?: number;
+    hoods_count?: number;
     local_admins_count?: number;
     admins?: User[];
+    hoods?: Hood[];
     created_at: string;
     updated_at: string;
 };
@@ -24,6 +41,7 @@ export type Branch = {
 export type Member = {
     id: number;
     branch_id: number;
+    hood_id: number | null;
     first_name: string;
     last_name: string;
     full_name: string;
@@ -37,6 +55,7 @@ export type Member = {
     profile_slug: string;
     approved: boolean;
     branch?: Branch;
+    hood?: Hood | null;
     nfc_card?: NfcCard | null;
     profile_url?: string;
     created_at: string;
