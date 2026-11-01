@@ -3,6 +3,7 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { Building2, Eye, Pencil, Plus, Search, Trash2 } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
+import PaginationFooter from '@/components/PaginationFooter.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -167,6 +168,25 @@ function clearFilters(): void {
     router.get(membersIndex.url(), {}, { preserveScroll: true });
 }
 
+/**
+ * Live search: apply the query automatically as the user types so searching
+ * works on mobile too, where pressing Enter on the keyboard is unreliable.
+ */
+let searchTimeout: ReturnType<typeof setTimeout> | undefined;
+
+watch(
+    () => filterForm.value.q,
+    (query) => {
+        clearTimeout(searchTimeout);
+
+        if (query === props.filters.q) {
+            return;
+        }
+
+        searchTimeout = setTimeout(() => applyFilters(), 350);
+    },
+);
+
 function openCreate(): void {
     editing.value = null;
     memberForm.reset();
@@ -281,6 +301,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    clearTimeout(searchTimeout);
     stopListeningStart?.();
     stopListeningFinish?.();
 });
@@ -355,6 +376,8 @@ onUnmounted(() => {
                             <Input
                                 id="search"
                                 v-model="filterForm.q"
+                                type="search"
+                                enterkeyhint="search"
                                 placeholder="Name or email"
                                 class="pl-9"
                             />
@@ -439,24 +462,38 @@ onUnmounted(() => {
                 class="space-y-3 p-4 py-4"
             >
                 <div class="flex items-start gap-3">
-                    <div class="size-10 shrink-0 animate-pulse rounded-full bg-muted" />
+                    <div
+                        class="size-10 shrink-0 animate-pulse rounded-full bg-muted"
+                    />
                     <div class="min-w-0 flex-1 space-y-2">
                         <div class="h-4 w-3/5 animate-pulse rounded bg-muted" />
                         <div class="h-3 w-4/5 animate-pulse rounded bg-muted" />
                         <div class="mt-2 flex gap-1.5">
-                            <div class="h-5 w-16 animate-pulse rounded-full bg-muted" />
-                            <div class="h-5 w-14 animate-pulse rounded-full bg-muted" />
+                            <div
+                                class="h-5 w-16 animate-pulse rounded-full bg-muted"
+                            />
+                            <div
+                                class="h-5 w-14 animate-pulse rounded-full bg-muted"
+                            />
                         </div>
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-x-4 gap-y-2">
                     <div class="space-y-1">
-                        <div class="h-2.5 w-10 animate-pulse rounded bg-muted" />
-                        <div class="h-3.5 w-24 animate-pulse rounded bg-muted" />
+                        <div
+                            class="h-2.5 w-10 animate-pulse rounded bg-muted"
+                        />
+                        <div
+                            class="h-3.5 w-24 animate-pulse rounded bg-muted"
+                        />
                     </div>
                     <div class="space-y-1">
-                        <div class="h-2.5 w-10 animate-pulse rounded bg-muted" />
-                        <div class="h-3.5 w-20 animate-pulse rounded bg-muted" />
+                        <div
+                            class="h-2.5 w-10 animate-pulse rounded bg-muted"
+                        />
+                        <div
+                            class="h-3.5 w-20 animate-pulse rounded bg-muted"
+                        />
                     </div>
                 </div>
                 <div class="flex gap-2 border-t pt-3">
@@ -567,6 +604,18 @@ onUnmounted(() => {
             >
                 No members match your filters.
             </Card>
+
+            <Card v-if="members.total > 0" class="py-0">
+                <PaginationFooter
+                    :from="members.from"
+                    :to="members.to"
+                    :total="members.total"
+                    :current-page="members.current_page"
+                    :last-page="members.last_page"
+                    @previous="goToPage(members.current_page - 1)"
+                    @next="goToPage(members.current_page + 1)"
+                />
+            </Card>
         </div>
 
         <!-- Desktop skeleton table -->
@@ -581,7 +630,9 @@ onUnmounted(() => {
                             <th class="px-4 py-3 font-medium">Position</th>
                             <th class="px-4 py-3 font-medium">Status</th>
                             <th class="px-4 py-3 font-medium">Joined</th>
-                            <th class="px-4 py-3 text-right font-medium">Actions</th>
+                            <th class="px-4 py-3 text-right font-medium">
+                                Actions
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -593,39 +644,61 @@ onUnmounted(() => {
                             <!-- Member cell -->
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-3">
-                                    <div class="size-9 shrink-0 animate-pulse rounded-full bg-muted" />
+                                    <div
+                                        class="size-9 shrink-0 animate-pulse rounded-full bg-muted"
+                                    />
                                     <div class="space-y-1.5">
-                                        <div class="h-4 w-32 animate-pulse rounded bg-muted" />
-                                        <div class="h-3 w-44 animate-pulse rounded bg-muted" />
+                                        <div
+                                            class="h-4 w-32 animate-pulse rounded bg-muted"
+                                        />
+                                        <div
+                                            class="h-3 w-44 animate-pulse rounded bg-muted"
+                                        />
                                     </div>
                                 </div>
                             </td>
                             <!-- Territory -->
                             <td class="px-4 py-3">
-                                <div class="h-4 w-24 animate-pulse rounded bg-muted" />
+                                <div
+                                    class="h-4 w-24 animate-pulse rounded bg-muted"
+                                />
                             </td>
                             <!-- Hood -->
                             <td class="px-4 py-3">
-                                <div class="h-4 w-20 animate-pulse rounded bg-muted" />
+                                <div
+                                    class="h-4 w-20 animate-pulse rounded bg-muted"
+                                />
                             </td>
                             <!-- Position -->
                             <td class="px-4 py-3">
-                                <div class="h-5 w-16 animate-pulse rounded-full bg-muted" />
+                                <div
+                                    class="h-5 w-16 animate-pulse rounded-full bg-muted"
+                                />
                             </td>
                             <!-- Status -->
                             <td class="px-4 py-3">
-                                <div class="h-5 w-14 animate-pulse rounded-full bg-muted" />
+                                <div
+                                    class="h-5 w-14 animate-pulse rounded-full bg-muted"
+                                />
                             </td>
                             <!-- Joined -->
                             <td class="px-4 py-3">
-                                <div class="h-3.5 w-20 animate-pulse rounded bg-muted" />
+                                <div
+                                    class="h-3.5 w-20 animate-pulse rounded bg-muted"
+                                />
                             </td>
                             <!-- Actions -->
                             <td class="px-4 py-3">
                                 <div class="flex justify-end gap-1">
-                                    <div class="size-7 animate-pulse rounded bg-muted" />
-                                    <div class="size-7 animate-pulse rounded bg-muted" />
-                                    <div class="size-7 animate-pulse rounded bg-muted" />
+                                    <div
+                                        class="size-7 animate-pulse rounded bg-muted"
+                                    />
+                                    <div
+                                        class="size-7 animate-pulse rounded bg-muted"
+                                    />
+                                    <div
+                                        class="size-7 animate-pulse rounded bg-muted"
+                                    />
                                 </div>
                             </td>
                         </tr>
@@ -746,35 +819,16 @@ onUnmounted(() => {
                 </table>
             </div>
 
-            <div
-                class="flex flex-col gap-2 border-t px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
-            >
-                <p>
-                    Showing {{ members.from ?? 0 }}–{{ members.to ?? 0 }} of
-                    {{ members.total }}
-                </p>
-                <div class="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        :disabled="members.current_page <= 1"
-                        @click="goToPage(members.current_page - 1)"
-                    >
-                        Previous
-                    </Button>
-                    <span class="font-mono"
-                        >{{ members.current_page }} /
-                        {{ members.last_page }}</span
-                    >
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        :disabled="members.current_page >= members.last_page"
-                        @click="goToPage(members.current_page + 1)"
-                    >
-                        Next
-                    </Button>
-                </div>
+            <div class="border-t">
+                <PaginationFooter
+                    :from="members.from"
+                    :to="members.to"
+                    :total="members.total"
+                    :current-page="members.current_page"
+                    :last-page="members.last_page"
+                    @previous="goToPage(members.current_page - 1)"
+                    @next="goToPage(members.current_page + 1)"
+                />
             </div>
         </Card>
     </div>
@@ -828,12 +882,17 @@ onUnmounted(() => {
                             maxlength="11"
                             placeholder="09XXXXXXXXX"
                             v-model="memberForm.phone"
-                            @input="(e: Event) => {
-                                const val = (e.target as HTMLInputElement).value;
-                                if (val.startsWith('09')) {
-                                    memberForm.phone = val.replace(/\D/g, '').slice(0, 11);
+                            @input="
+                                (e: Event) => {
+                                    const val = (e.target as HTMLInputElement)
+                                        .value;
+                                    if (val.startsWith('09')) {
+                                        memberForm.phone = val
+                                            .replace(/\D/g, '')
+                                            .slice(0, 11);
+                                    }
                                 }
-                            }"
+                            "
                         />
                         <InputError :message="memberForm.errors.phone" />
                     </div>

@@ -49,7 +49,6 @@ const deleteOpen = ref(false);
 const editing = ref<NfcCard | null>(null);
 const deleteTarget = ref<NfcCard | null>(null);
 
-
 const assignForm = useForm({
     member_id: 0,
     card_uid: generateUid(),
@@ -167,8 +166,6 @@ async function copyLink(url: string): Promise<void> {
         toast.error('Could not copy the link.');
     }
 }
-
-
 </script>
 
 <template>

@@ -25,7 +25,9 @@ defineProps<{
 }>();
 function fillDemo(username: string, pass: string): void {
     const emailEl = document.getElementById('email') as HTMLInputElement | null;
-    const passEl = document.getElementById('password') as HTMLInputElement | null;
+    const passEl = document.getElementById(
+        'password',
+    ) as HTMLInputElement | null;
 
     if (emailEl) {
         emailEl.value = username;
@@ -122,10 +124,14 @@ function fillDemo(username: string, pass: string): void {
             class="rounded-xl border border-dashed border-border bg-muted/30 p-3.5 text-xs"
         >
             <div class="mb-2.5 flex items-center justify-between">
-                <p class="font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                <p
+                    class="font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+                >
                     Demo Accounts
                 </p>
-                <span class="text-[10px] text-muted-foreground">Click to fill</span>
+                <span class="text-[10px] text-muted-foreground"
+                    >Click to fill</span
+                >
             </div>
 
             <div class="grid gap-2">
@@ -136,14 +142,23 @@ function fillDemo(username: string, pass: string): void {
                 >
                     <div>
                         <div class="flex items-center gap-1.5">
-                            <span class="font-medium text-foreground">Fairview Admin</span>
-                            <span class="rounded bg-sky-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-sky-600 dark:text-sky-400">Territory</span>
+                            <span class="font-medium text-foreground"
+                                >Fairview Admin</span
+                            >
+                            <span
+                                class="py-0.2 rounded bg-sky-500/10 px-1.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400"
+                                >Territory</span
+                            >
                         </div>
-                        <p class="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                        <p
+                            class="mt-0.5 font-mono text-[11px] text-muted-foreground"
+                        >
                             fv_admin <span class="text-border">/</span> fv123456
                         </p>
                     </div>
-                    <span class="text-[11px] font-medium text-primary">Use &rarr;</span>
+                    <span class="text-[11px] font-medium text-primary"
+                        >Use &rarr;</span
+                    >
                 </button>
 
                 <button
@@ -153,14 +168,23 @@ function fillDemo(username: string, pass: string): void {
                 >
                     <div>
                         <div class="flex items-center gap-1.5">
-                            <span class="font-medium text-foreground">Tandang Sora Admin</span>
-                            <span class="rounded bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Territory</span>
+                            <span class="font-medium text-foreground"
+                                >Tandang Sora Admin</span
+                            >
+                            <span
+                                class="py-0.2 rounded bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
+                                >Territory</span
+                            >
                         </div>
-                        <p class="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                        <p
+                            class="mt-0.5 font-mono text-[11px] text-muted-foreground"
+                        >
                             ts_admin <span class="text-border">/</span> ts123456
                         </p>
                     </div>
-                    <span class="text-[11px] font-medium text-primary">Use &rarr;</span>
+                    <span class="text-[11px] font-medium text-primary"
+                        >Use &rarr;</span
+                    >
                 </button>
 
                 <button
@@ -170,14 +194,23 @@ function fillDemo(username: string, pass: string): void {
                 >
                     <div>
                         <div class="flex items-center gap-1.5">
-                            <span class="font-medium text-foreground">Main Administrator</span>
-                            <span class="rounded bg-primary/10 px-1.5 py-0.2 text-[10px] font-semibold text-primary">Full Access</span>
+                            <span class="font-medium text-foreground"
+                                >Main Administrator</span
+                            >
+                            <span
+                                class="py-0.2 rounded bg-primary/10 px-1.5 text-[10px] font-semibold text-primary"
+                                >Full Access</span
+                            >
                         </div>
-                        <p class="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                        <p
+                            class="mt-0.5 font-mono text-[11px] text-muted-foreground"
+                        >
                             admin <span class="text-border">/</span> admin123
                         </p>
                     </div>
-                    <span class="text-[11px] font-medium text-primary">Use &rarr;</span>
+                    <span class="text-[11px] font-medium text-primary"
+                        >Use &rarr;</span
+                    >
                 </button>
             </div>
         </div>
