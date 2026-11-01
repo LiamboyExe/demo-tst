@@ -5,7 +5,7 @@ import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { logout } from '@/routes';
-import { send } from '@/routes/verification';
+import { instant, send } from '@/routes/verification';
 
 defineOptions({
     layout: {
@@ -23,11 +23,15 @@ const verifyingInstant = ref(false);
 
 function instantVerify(): void {
     verifyingInstant.value = true;
-    router.post('/email/instant-verify', {}, {
-        onFinish: () => {
-            verifyingInstant.value = false;
+    router.post(
+        instant.url(),
+        {},
+        {
+            onFinish: () => {
+                verifyingInstant.value = false;
+            },
         },
-    });
+    );
 }
 </script>
 
@@ -63,7 +67,11 @@ function instantVerify(): void {
                 Resend verification email
             </Button>
 
-            <TextLink :href="logout()" as="button" class="mx-auto block text-sm">
+            <TextLink
+                :href="logout()"
+                as="button"
+                class="mx-auto block text-sm"
+            >
                 Log out
             </TextLink>
         </Form>
