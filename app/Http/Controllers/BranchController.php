@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -195,6 +196,11 @@ class BranchController extends Controller
         Gate::authorize('delete', $branch);
 
         DB::transaction(function () use ($branch): void {
+            $branch->members()
+                ->whereNotNull('avatar_path')
+                ->pluck('avatar_path')
+                ->each(fn (string $path) => Storage::disk('public')->delete($path));
+
             $branch->admins()->where('role', UserRole::Local)->delete();
             $branch->delete();
         });

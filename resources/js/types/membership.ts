@@ -44,6 +44,10 @@ export type Member = {
     hood_id: number | null;
     first_name: string;
     last_name: string;
+    alias: string | null;
+    birthdate: string | null;
+    age: number | null;
+    avatar_url: string | null;
     full_name: string;
     initials: string;
     email: string;

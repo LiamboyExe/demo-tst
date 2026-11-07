@@ -15,7 +15,7 @@ class PublicProfileController extends Controller
     {
         abort_unless($member->approved, 404);
 
-        $member->load(['branch', 'nfcCard']);
+        $member->load(['branch', 'hood', 'nfcCard']);
 
         return Inertia::render('Profile/Show', [
             'member' => $member,

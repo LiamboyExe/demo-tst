@@ -2,15 +2,18 @@
 import { Head } from '@inertiajs/vue3';
 import {
     Building2,
+    CakeSlice,
     CalendarDays,
     CreditCard,
     Home,
     Mail,
     MapPin,
+    MapPinned,
     Phone,
     ShieldCheck,
 } from '@lucide/vue';
 import { formatDate } from '@/lib/format';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Member } from '@/types';
 
 const props = defineProps<{
@@ -82,15 +85,33 @@ function badgeClass(value: string): string {
                         Temple Street Demo System
                     </div>
 
-                    <div
-                        class="mx-auto mt-5 flex size-20 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-400/10 text-2xl font-semibold text-emerald-300"
+                    <Avatar
+                        class="mx-auto mt-5 size-20 border border-emerald-400/30"
                     >
-                        {{ member.initials }}
-                    </div>
+                        <AvatarImage
+                            v-if="member.avatar_url"
+                            :src="member.avatar_url"
+                            :alt="member.full_name"
+                            class="object-cover"
+                        />
+                        <AvatarFallback
+                            class="bg-emerald-400/10 text-2xl font-semibold text-emerald-300"
+                        >
+                            {{ member.initials }}
+                        </AvatarFallback>
+                    </Avatar>
 
                     <h1 class="mt-4 text-2xl font-semibold tracking-tight">
                         {{ member.full_name }}
                     </h1>
+
+                    <p
+                        v-if="member.alias"
+                        class="mt-1 text-sm text-emerald-300/90"
+                    >
+                        a.k.a.
+                        <span class="font-medium">“{{ member.alias }}”</span>
+                    </p>
 
                     <div class="mt-2 flex flex-wrap justify-center gap-2">
                         <span
@@ -121,6 +142,26 @@ function badgeClass(value: string): string {
                 <div class="my-6 border-t border-zinc-800" />
 
                 <div class="grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
+                    <div>
+                        <p
+                            class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
+                        >
+                            <MapPinned class="size-3" /> Hood
+                        </p>
+                        <p class="mt-1 text-sm">
+                            {{ member.hood?.name ?? 'N/A' }}
+                        </p>
+                    </div>
+                    <div>
+                        <p
+                            class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
+                        >
+                            <CakeSlice class="size-3" /> Age
+                        </p>
+                        <p class="mt-1 text-sm">
+                            {{ member.age ?? 'N/A' }}
+                        </p>
+                    </div>
                     <div>
                         <p
                             class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"

@@ -1,10 +1,22 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Building2, Eye, Pencil, Plus, Search, Trash2 } from '@lucide/vue';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import {
+    Building2,
+    Crop,
+    Eye,
+    Pencil,
+    Plus,
+    Search,
+    Trash2,
+    X,
+    ZoomIn,
+    ZoomOut,
+} from '@lucide/vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import PaginationFooter from '@/components/PaginationFooter.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -105,6 +117,10 @@ const memberForm = useForm({
     hood_id: null as number | null,
     first_name: '',
     last_name: '',
+    alias: '',
+    birthdate: '',
+    avatar: null as File | null,
+    remove_avatar: false,
     email: '',
     phone: '',
     address: '',
@@ -117,6 +133,305 @@ const memberForm = useForm({
 const deleteOpen = ref(false);
 const deleteTarget = ref<Member | null>(null);
 
+const avatarPreview = ref<string | null>(null);
+const avatarInput = ref<HTMLInputElement | null>(null);
+const avatarError = ref<string | null>(null);
+
+const cropOpen = ref(false);
+const cropSource = ref<string | null>(null);
+const cropSourceIsBlob = ref(false);
+const cropZoom = ref(1);
+const cropX = ref(0);
+const cropY = ref(0);
+const cropImage = ref<HTMLImageElement | null>(null);
+const cropCanvas = ref<HTMLCanvasElement | null>(null);
+
+let cropDragging = false;
+let cropLastX = 0;
+let cropLastY = 0;
+
+const avatarPreviewSrc = computed<string | null>(() => {
+    if (avatarPreview.value) {
+        return avatarPreview.value;
+    }
+
+    if (!memberForm.remove_avatar && editing.value?.avatar_url) {
+        return editing.value.avatar_url;
+    }
+
+    return null;
+});
+
+const formInitials = computed<string>(() => {
+    const initials =
+        memberForm.first_name.charAt(0) + memberForm.last_name.charAt(0);
+
+    return initials.toUpperCase() || '…';
+});
+
+function revokeAvatarPreview(): void {
+    if (avatarPreview.value?.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreview.value);
+    }
+
+    avatarPreview.value = null;
+}
+
+function onAvatarChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+
+    if (!file) {
+        return;
+    }
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        avatarError.value = 'Please choose a JPG, PNG or WebP image.';
+
+        return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+        avatarError.value = 'The image must be 2 MB or smaller.';
+
+        return;
+    }
+
+    avatarError.value = null;
+    openCropEditor(URL.createObjectURL(file), true);
+}
+
+function openCropEditor(src: string, revokeOnClose = false): void {
+    if (
+        cropSource.value &&
+        cropSourceIsBlob.value &&
+        cropSource.value !== src
+    ) {
+        URL.revokeObjectURL(cropSource.value);
+    }
+
+    cropSource.value = src;
+    cropSourceIsBlob.value = revokeOnClose;
+    cropZoom.value = 1;
+    cropX.value = 0;
+    cropY.value = 0;
+    cropImage.value = null;
+    cropOpen.value = true;
+
+    const image = new Image();
+
+    image.onload = () => {
+        cropImage.value = image;
+        nextTick(drawCrop);
+    };
+
+    image.onerror = () => {
+        avatarError.value = 'That image could not be opened.';
+        closeCropEditor();
+    };
+
+    image.src = src;
+}
+
+function closeCropEditor(): void {
+    cropOpen.value = false;
+
+    if (cropSourceIsBlob.value && cropSource.value) {
+        URL.revokeObjectURL(cropSource.value);
+    }
+
+    cropSource.value = null;
+    cropSourceIsBlob.value = false;
+    cropImage.value = null;
+    cropDragging = false;
+}
+
+function clampCropOffset(): void {
+    const image = cropImage.value;
+    const canvas = cropCanvas.value;
+
+    if (!image || !canvas || !canvas.clientWidth) {
+        return;
+    }
+
+    const viewport = canvas.clientWidth;
+    const baseScale = Math.max(
+        viewport / image.naturalWidth,
+        viewport / image.naturalHeight,
+    );
+    const scale = baseScale * cropZoom.value;
+    const maxX = Math.max(0, (image.naturalWidth * scale - viewport) / 2);
+    const maxY = Math.max(0, (image.naturalHeight * scale - viewport) / 2);
+
+    cropX.value = Math.min(maxX, Math.max(-maxX, cropX.value));
+    cropY.value = Math.min(maxY, Math.max(-maxY, cropY.value));
+}
+
+function drawCrop(): void {
+    const image = cropImage.value;
+    const canvas = cropCanvas.value;
+
+    if (!image || !canvas || !canvas.clientWidth) {
+        return;
+    }
+
+    const viewport = canvas.clientWidth;
+    const pixelRatio = window.devicePixelRatio || 1;
+
+    canvas.width = Math.round(viewport * pixelRatio);
+    canvas.height = Math.round(viewport * pixelRatio);
+
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+        return;
+    }
+
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.clearRect(0, 0, viewport, viewport);
+
+    clampCropOffset();
+
+    const baseScale = Math.max(
+        viewport / image.naturalWidth,
+        viewport / image.naturalHeight,
+    );
+    const scale = baseScale * cropZoom.value;
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+
+    context.drawImage(
+        image,
+        (viewport - width) / 2 + cropX.value,
+        (viewport - height) / 2 + cropY.value,
+        width,
+        height,
+    );
+}
+
+function startCropDrag(event: PointerEvent): void {
+    if (!cropImage.value) {
+        return;
+    }
+
+    cropDragging = true;
+    cropLastX = event.clientX;
+    cropLastY = event.clientY;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+}
+
+function moveCropDrag(event: PointerEvent): void {
+    if (!cropDragging) {
+        return;
+    }
+
+    cropX.value += event.clientX - cropLastX;
+    cropY.value += event.clientY - cropLastY;
+    cropLastX = event.clientX;
+    cropLastY = event.clientY;
+    drawCrop();
+}
+
+function endCropDrag(event: PointerEvent): void {
+    if (!cropDragging) {
+        return;
+    }
+
+    cropDragging = false;
+    (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+}
+
+function zoomCrop(event: WheelEvent): void {
+    cropZoom.value = Math.min(
+        3,
+        Math.max(1, cropZoom.value - event.deltaY * 0.0015),
+    );
+}
+
+function applyCrop(): void {
+    const image = cropImage.value;
+    const canvas = cropCanvas.value;
+
+    if (!image || !canvas || !canvas.clientWidth) {
+        return;
+    }
+
+    const viewport = canvas.clientWidth;
+    const outputSize = 512;
+    const output = document.createElement('canvas');
+    output.width = outputSize;
+    output.height = outputSize;
+
+    const context = output.getContext('2d');
+
+    if (!context) {
+        return;
+    }
+
+    const baseScale = Math.max(
+        viewport / image.naturalWidth,
+        viewport / image.naturalHeight,
+    );
+    const scale = (baseScale * cropZoom.value * outputSize) / viewport;
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    const offset = outputSize / viewport;
+
+    context.drawImage(
+        image,
+        (outputSize - width) / 2 + cropX.value * offset,
+        (outputSize - height) / 2 + cropY.value * offset,
+        width,
+        height,
+    );
+
+    output.toBlob(
+        (blob) => {
+            if (!blob) {
+                return;
+            }
+
+            const file = new File([blob], 'avatar.jpg', {
+                type: 'image/jpeg',
+            });
+
+            revokeAvatarPreview();
+            memberForm.avatar = file;
+            memberForm.remove_avatar = false;
+            avatarPreview.value = URL.createObjectURL(file);
+            avatarError.value = null;
+            closeCropEditor();
+        },
+        'image/jpeg',
+        0.9,
+    );
+}
+
+function clearAvatar(): void {
+    revokeAvatarPreview();
+    memberForm.avatar = null;
+    memberForm.remove_avatar = true;
+    avatarError.value = null;
+
+    if (avatarInput.value) {
+        avatarInput.value.value = '';
+    }
+}
+
+function resetCropState(): void {
+    closeCropEditor();
+    avatarError.value = null;
+}
+
+watch(cropZoom, () => drawCrop());
+
+watch(cropOpen, (open) => {
+    if (open) {
+        nextTick(drawCrop);
+    }
+});
+
 const formTitle = computed(() =>
     editing.value ? 'Edit member' : 'Add member',
 );
@@ -127,13 +442,107 @@ const formHoods = computed<Hood[]>(() => {
     return branch?.hoods ?? [];
 });
 
-// When branch changes in form, reset hood
-watch(
-    () => memberForm.branch_id,
-    () => {
-        memberForm.hood_id = null;
-    },
+// When the user switches territory in the form, clear the hood. This is a
+// change handler rather than a watcher so opening a member for editing does
+// not wipe the hood after it has been populated.
+function onBranchChange(): void {
+    memberForm.hood_id = null;
+}
+
+const MONTH_NAMES = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+];
+
+const birthMonth = ref<number | null>(null);
+const birthDay = ref<number | null>(null);
+const birthYear = ref<number | null>(null);
+
+const currentYear = new Date().getFullYear();
+const birthYears = Array.from(
+    { length: currentYear - 1899 },
+    (_, index) => currentYear - index,
 );
+
+const birthDays = computed<number>(() => {
+    if (!birthMonth.value) {
+        return 31;
+    }
+
+    return new Date(
+        birthYear.value ?? currentYear,
+        birthMonth.value,
+        0,
+    ).getDate();
+});
+
+const birthAge = computed<number | null>(() => {
+    const value = memberForm.birthdate;
+
+    if (!value) {
+        return null;
+    }
+
+    const birth = new Date(`${value}T00:00:00`);
+
+    if (Number.isNaN(birth.getTime())) {
+        return null;
+    }
+
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+
+    if (
+        now.getMonth() < birth.getMonth() ||
+        (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())
+    ) {
+        age--;
+    }
+
+    return age >= 0 ? age : null;
+});
+
+// Keep the hidden ISO value in sync with the friendly month/day/year selects.
+watch([birthMonth, birthDay, birthYear], () => {
+    if (birthDay.value && birthDay.value > birthDays.value) {
+        birthDay.value = birthDays.value;
+    }
+
+    if (birthMonth.value && birthDay.value && birthYear.value) {
+        const month = String(birthMonth.value).padStart(2, '0');
+        const day = String(birthDay.value).padStart(2, '0');
+
+        memberForm.birthdate = `${birthYear.value}-${month}-${day}`;
+    } else {
+        memberForm.birthdate = '';
+    }
+});
+
+function setBirthdate(value: string | null | undefined): void {
+    if (!value) {
+        birthMonth.value = null;
+        birthDay.value = null;
+        birthYear.value = null;
+
+        return;
+    }
+
+    const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+
+    birthYear.value = year || null;
+    birthMonth.value = month || null;
+    birthDay.value = day || null;
+}
 
 function positionLabel(type: MembershipType | string): string {
     if (type === 'Carnal') {
@@ -191,6 +600,14 @@ function openCreate(): void {
     editing.value = null;
     memberForm.reset();
     memberForm.clearErrors();
+    revokeAvatarPreview();
+    resetCropState();
+    setBirthdate(null);
+
+    if (avatarInput.value) {
+        avatarInput.value.value = '';
+    }
+
     memberForm.branch_id = props.filters.branch || props.branches[0]?.id || 0;
     memberForm.hood_id = props.filters.hood || null;
     formOpen.value = true;
@@ -214,10 +631,21 @@ function editFromView(): void {
 function openEdit(member: Member): void {
     editing.value = member;
     memberForm.clearErrors();
+    revokeAvatarPreview();
+    resetCropState();
+
+    if (avatarInput.value) {
+        avatarInput.value.value = '';
+    }
+
+    memberForm.avatar = null;
+    memberForm.remove_avatar = false;
     memberForm.branch_id = member.branch_id;
     memberForm.hood_id = member.hood_id;
     memberForm.first_name = member.first_name;
     memberForm.last_name = member.last_name;
+    memberForm.alias = member.alias ?? '';
+    setBirthdate(member.birthdate);
     memberForm.email = member.email;
     memberForm.phone = member.phone ?? '';
     memberForm.address = member.address ?? '';
@@ -237,6 +665,7 @@ function submit(): void {
     const options = {
         preserveScroll: true,
         onSuccess: () => {
+            revokeAvatarPreview();
             formOpen.value = false;
             editing.value = null;
         },
@@ -302,6 +731,8 @@ onMounted(() => {
 
 onUnmounted(() => {
     clearTimeout(searchTimeout);
+    revokeAvatarPreview();
+    closeCropEditor();
     stopListeningStart?.();
     stopListeningFinish?.();
 });
@@ -378,7 +809,7 @@ onUnmounted(() => {
                                 v-model="filterForm.q"
                                 type="search"
                                 enterkeyhint="search"
-                                placeholder="Name or email"
+                                placeholder="Name, alias or email"
                                 class="pl-9"
                             />
                         </div>
@@ -512,11 +943,19 @@ onUnmounted(() => {
                 class="space-y-3 p-4 py-4"
             >
                 <div class="flex items-start gap-3">
-                    <div
-                        class="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold"
-                    >
-                        {{ member.initials }}
-                    </div>
+                    <Avatar class="size-10 shrink-0">
+                        <AvatarImage
+                            v-if="member.avatar_url"
+                            :src="member.avatar_url"
+                            :alt="member.full_name"
+                            class="object-cover"
+                        />
+                        <AvatarFallback
+                            class="bg-muted font-mono text-xs font-semibold"
+                        >
+                            {{ member.initials }}
+                        </AvatarFallback>
+                    </Avatar>
                     <div class="min-w-0 flex-1">
                         <p class="truncate font-medium">
                             {{ member.full_name }}
@@ -778,11 +1217,19 @@ onUnmounted(() => {
                         >
                             <td class="px-3 py-3 xl:px-4">
                                 <div class="flex items-center gap-3">
-                                    <div
-                                        class="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold"
-                                    >
-                                        {{ member.initials }}
-                                    </div>
+                                    <Avatar class="size-9 shrink-0">
+                                        <AvatarImage
+                                            v-if="member.avatar_url"
+                                            :src="member.avatar_url"
+                                            :alt="member.full_name"
+                                            class="object-cover"
+                                        />
+                                        <AvatarFallback
+                                            class="bg-muted font-mono text-xs font-semibold"
+                                        >
+                                            {{ member.initials }}
+                                        </AvatarFallback>
+                                    </Avatar>
                                     <div class="min-w-0">
                                         <p class="truncate font-medium">
                                             {{ member.full_name }}
@@ -869,7 +1316,16 @@ onUnmounted(() => {
         </Card>
     </div>
 
-    <Dialog v-model:open="formOpen">
+    <Dialog
+        v-model:open="formOpen"
+        @update:open="
+            (open: boolean) => {
+                if (!open) {
+                    resetCropState();
+                }
+            }
+        "
+    >
         <DialogContent class="sm:max-w-2xl">
             <form class="space-y-4" @submit.prevent="submit">
                 <DialogHeader>
@@ -884,6 +1340,68 @@ onUnmounted(() => {
                 </DialogHeader>
 
                 <div class="grid gap-4 sm:grid-cols-2">
+                    <div
+                        class="flex items-center gap-4 rounded-lg border p-3 sm:col-span-2"
+                    >
+                        <Avatar class="size-16 shrink-0 border">
+                            <AvatarImage
+                                v-if="avatarPreviewSrc"
+                                :src="avatarPreviewSrc"
+                                :alt="memberForm.first_name || 'Member'"
+                                class="object-cover"
+                            />
+                            <AvatarFallback
+                                class="bg-muted font-mono text-sm font-semibold"
+                            >
+                                {{ formInitials }}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div class="min-w-0 flex-1 space-y-1.5">
+                            <Label for="avatar">Profile photo</Label>
+                            <input
+                                id="avatar"
+                                ref="avatarInput"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                class="block w-full cursor-pointer text-sm text-muted-foreground file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-secondary-foreground hover:file:bg-secondary/80"
+                                @change="onAvatarChange"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                                JPG, PNG or WebP · max 2 MB. You can crop the
+                                photo before saving.
+                            </p>
+                            <div
+                                v-if="avatarPreviewSrc"
+                                class="flex flex-wrap items-center gap-1"
+                            >
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="h-7 px-2"
+                                    @click="openCropEditor(avatarPreviewSrc!)"
+                                >
+                                    <Crop class="size-3.5" />
+                                    Adjust photo
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    class="h-7 px-2 text-destructive hover:text-destructive"
+                                    @click="clearAvatar"
+                                >
+                                    <X class="size-3.5" />
+                                    Remove photo
+                                </Button>
+                            </div>
+                            <InputError
+                                :message="
+                                    avatarError ?? memberForm.errors.avatar
+                                "
+                            />
+                        </div>
+                    </div>
                     <div class="space-y-1.5">
                         <Label for="first_name">First name</Label>
                         <Input
@@ -896,6 +1414,74 @@ onUnmounted(() => {
                         <Label for="last_name">Last name</Label>
                         <Input id="last_name" v-model="memberForm.last_name" />
                         <InputError :message="memberForm.errors.last_name" />
+                    </div>
+                    <div class="space-y-1.5">
+                        <Label for="alias">Alias / Plakaso</Label>
+                        <Input
+                            id="alias"
+                            placeholder="e.g. Bogs, Tisoy"
+                            v-model="memberForm.alias"
+                        />
+                        <InputError :message="memberForm.errors.alias" />
+                    </div>
+                    <div class="space-y-1.5">
+                        <Label for="birthdate">Birthdate</Label>
+                        <div class="grid grid-cols-[1.35fr_1fr_1fr] gap-2">
+                            <select
+                                id="birthdate"
+                                v-model.number="birthMonth"
+                                :class="selectClass"
+                                aria-label="Birth month"
+                            >
+                                <option :value="null">Month</option>
+                                <option
+                                    v-for="(month, index) in MONTH_NAMES"
+                                    :key="month"
+                                    :value="index + 1"
+                                >
+                                    {{ month }}
+                                </option>
+                            </select>
+                            <select
+                                v-model.number="birthDay"
+                                :class="selectClass"
+                                aria-label="Birth day"
+                            >
+                                <option :value="null">Day</option>
+                                <option
+                                    v-for="day in birthDays"
+                                    :key="day"
+                                    :value="day"
+                                >
+                                    {{ day }}
+                                </option>
+                            </select>
+                            <select
+                                v-model.number="birthYear"
+                                :class="selectClass"
+                                aria-label="Birth year"
+                            >
+                                <option :value="null">Year</option>
+                                <option
+                                    v-for="year in birthYears"
+                                    :key="year"
+                                    :value="year"
+                                >
+                                    {{ year }}
+                                </option>
+                            </select>
+                        </div>
+                        <p class="text-xs text-muted-foreground">
+                            <template v-if="birthAge !== null">
+                                Age:
+                                <span class="font-medium text-foreground">{{
+                                    birthAge
+                                }}</span>
+                                ·
+                            </template>
+                            Computed automatically from the birthdate.
+                        </p>
+                        <InputError :message="memberForm.errors.birthdate" />
                     </div>
                     <div class="space-y-1.5">
                         <Label for="email">Email</Label>
@@ -989,6 +1575,7 @@ onUnmounted(() => {
                             v-model.number="memberForm.branch_id"
                             :class="selectClass"
                             :disabled="!isMainAdmin"
+                            @change="onBranchChange"
                         >
                             <option
                                 v-for="branch in branches"
@@ -1051,6 +1638,71 @@ onUnmounted(() => {
         </DialogContent>
     </Dialog>
 
+    <Dialog
+        :open="cropOpen"
+        @update:open="
+            (open: boolean) => {
+                if (!open) {
+                    closeCropEditor();
+                }
+            }
+        "
+    >
+        <DialogContent class="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle>Adjust profile photo</DialogTitle>
+                <DialogDescription>
+                    Drag the photo to reposition it and use the slider to zoom.
+                    The circle shows how the avatar will look.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div
+                class="relative mx-auto aspect-square w-full max-w-xs touch-none overflow-hidden rounded-2xl border bg-zinc-950 select-none"
+                @pointerdown="startCropDrag"
+                @pointermove="moveCropDrag"
+                @pointerup="endCropDrag"
+                @pointercancel="endCropDrag"
+                @wheel.prevent="zoomCrop"
+            >
+                <canvas
+                    ref="cropCanvas"
+                    class="h-full w-full cursor-grab active:cursor-grabbing"
+                />
+                <div
+                    class="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] ring-1 ring-white/50"
+                />
+            </div>
+
+            <div class="flex items-center gap-3">
+                <ZoomOut class="size-4 shrink-0 text-muted-foreground" />
+                <input
+                    v-model.number="cropZoom"
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="0.01"
+                    aria-label="Zoom"
+                    class="w-full accent-emerald-500"
+                />
+                <ZoomIn class="size-4 shrink-0 text-muted-foreground" />
+            </div>
+
+            <DialogFooter>
+                <Button
+                    type="button"
+                    variant="secondary"
+                    @click="closeCropEditor"
+                >
+                    Cancel
+                </Button>
+                <Button type="button" :disabled="!cropImage" @click="applyCrop">
+                    Use photo
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
     <Dialog v-model:open="viewOpen">
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
@@ -1062,11 +1714,19 @@ onUnmounted(() => {
 
             <div v-if="viewing" class="space-y-5">
                 <div class="flex items-start gap-3">
-                    <div
-                        class="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-sm font-semibold"
-                    >
-                        {{ viewing.initials }}
-                    </div>
+                    <Avatar class="size-12 shrink-0">
+                        <AvatarImage
+                            v-if="viewing.avatar_url"
+                            :src="viewing.avatar_url"
+                            :alt="viewing.full_name"
+                            class="object-cover"
+                        />
+                        <AvatarFallback
+                            class="bg-muted font-mono text-sm font-semibold"
+                        >
+                            {{ viewing.initials }}
+                        </AvatarFallback>
+                    </Avatar>
                     <div class="min-w-0">
                         <p class="truncate font-semibold">
                             {{ viewing.full_name }}
@@ -1100,6 +1760,26 @@ onUnmounted(() => {
                         </p>
                         <p class="mt-1 font-medium">
                             {{ viewing.hood?.name ?? '—' }}
+                        </p>
+                    </div>
+                    <div>
+                        <p
+                            class="text-[10px] font-medium tracking-wide text-muted-foreground uppercase"
+                        >
+                            Alias / Plakaso
+                        </p>
+                        <p class="mt-1 font-medium">
+                            {{ viewing.alias || '—' }}
+                        </p>
+                    </div>
+                    <div>
+                        <p
+                            class="text-[10px] font-medium tracking-wide text-muted-foreground uppercase"
+                        >
+                            Age
+                        </p>
+                        <p class="mt-1 font-medium">
+                            {{ viewing.age ?? '—' }}
                         </p>
                     </div>
                     <div>

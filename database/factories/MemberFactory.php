@@ -27,6 +27,8 @@ class MemberFactory extends Factory
             'branch_id' => Branch::factory(),
             'first_name' => $firstName,
             'last_name' => $lastName,
+            'alias' => fake()->optional(0.7)->firstName(),
+            'birthdate' => fake()->dateTimeBetween('-55 years', '-18 years')->format('Y-m-d'),
             'email' => fake()->unique()->safeEmail(),
             'phone' => fake()->numerify('09#########'),
             'address' => fake()->streetAddress().', '.fake()->city(),

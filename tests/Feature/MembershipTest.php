@@ -5,6 +5,9 @@ use App\Models\Branch;
 use App\Models\Hood;
 use App\Models\Member;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function () {
@@ -57,6 +60,129 @@ test('branch admin can add a member and is forced into their own branch', functi
         'email' => 'jamie@example.com',
         'branch_id' => $this->north->id,
     ]);
+});
+
+test('member alias and birthdate are stored and age is computed', function () {
+    $this->travelTo(Carbon::parse('2026-11-07 12:00:00'));
+
+    $this->actingAs($this->mainAdmin)
+        ->post(route('members.store'), [
+            'branch_id' => $this->north->id,
+            'first_name' => 'Jose',
+            'last_name' => 'Dela Cruz',
+            'alias' => 'Bogs',
+            'birthdate' => '2000-05-10',
+            'email' => 'jose@example.com',
+            'membership_type' => 'Carnal',
+            'status' => 'Active',
+            'join_date' => '2026-01-15',
+            'approved' => 1,
+        ])
+        ->assertRedirect();
+
+    $member = Member::query()->where('alias', 'Bogs')->firstOrFail();
+
+    expect($member->birthdate->toDateString())->toBe('2000-05-10')
+        ->and($member->age)->toBe(26);
+});
+
+test('member birthdate cannot be in the future', function () {
+    $this->actingAs($this->mainAdmin)
+        ->post(route('members.store'), [
+            'branch_id' => $this->north->id,
+            'first_name' => 'Future',
+            'last_name' => 'Person',
+            'birthdate' => now()->addDay()->toDateString(),
+            'email' => 'future@example.com',
+            'membership_type' => 'Carnal',
+            'status' => 'Active',
+            'join_date' => '2026-01-15',
+            'approved' => 1,
+        ])
+        ->assertSessionHasErrors(['birthdate']);
+});
+
+test('member avatar can be uploaded, replaced and removed', function () {
+    Storage::fake('public');
+
+    $this->actingAs($this->mainAdmin)
+        ->post(route('members.store'), [
+            'branch_id' => $this->north->id,
+            'first_name' => 'Photo',
+            'last_name' => 'Member',
+            'email' => 'photo@example.com',
+            'membership_type' => 'Carnal',
+            'status' => 'Active',
+            'join_date' => '2026-01-15',
+            'approved' => 1,
+            'avatar' => UploadedFile::fake()->image('avatar.jpg'),
+        ])
+        ->assertRedirect();
+
+    $member = Member::query()->where('email', 'photo@example.com')->firstOrFail();
+    $originalPath = $member->avatar_path;
+
+    expect($originalPath)->not->toBeNull()
+        ->and($member->avatar_url)->toBe('/storage/'.$originalPath);
+
+    Storage::disk('public')->assertExists($originalPath);
+
+    $this->actingAs($this->mainAdmin)
+        ->patch(route('members.update', $member), [
+            'branch_id' => $this->north->id,
+            'first_name' => 'Photo',
+            'last_name' => 'Member',
+            'email' => 'photo@example.com',
+            'membership_type' => 'Carnal',
+            'status' => 'Active',
+            'join_date' => '2026-01-15',
+            'approved' => 1,
+            'avatar' => UploadedFile::fake()->image('replacement.png'),
+        ])
+        ->assertRedirect();
+
+    $member->refresh();
+
+    expect($member->avatar_path)->not->toBe($originalPath);
+    Storage::disk('public')->assertMissing($originalPath);
+    Storage::disk('public')->assertExists($member->avatar_path);
+
+    $replacedPath = $member->avatar_path;
+
+    $this->actingAs($this->mainAdmin)
+        ->patch(route('members.update', $member), [
+            'branch_id' => $this->north->id,
+            'first_name' => 'Photo',
+            'last_name' => 'Member',
+            'email' => 'photo@example.com',
+            'membership_type' => 'Carnal',
+            'status' => 'Active',
+            'join_date' => '2026-01-15',
+            'approved' => 1,
+            'remove_avatar' => true,
+        ])
+        ->assertRedirect();
+
+    expect($member->fresh()->avatar_path)->toBeNull();
+    Storage::disk('public')->assertMissing($replacedPath);
+});
+
+test('member avatar must be a valid image', function () {
+    Storage::fake('public');
+
+    $this->actingAs($this->mainAdmin)
+        ->post(route('members.store'), [
+            'branch_id' => $this->north->id,
+            'first_name' => 'Bad',
+            'last_name' => 'Upload',
+            'email' => 'bad-upload@example.com',
+            'membership_type' => 'Carnal',
+            'status' => 'Active',
+            'join_date' => '2026-01-15',
+            'approved' => 1,
+            'avatar' => UploadedFile::fake()->create('document.pdf', 100, 'application/pdf'),
+        ])
+        ->assertSessionHasErrors(['avatar']);
 });
 
 test('branch admin cannot update a member from another branch', function () {

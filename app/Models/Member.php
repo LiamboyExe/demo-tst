@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @property int $id
@@ -24,6 +25,9 @@ use Illuminate\Support\Carbon;
  * @property int|null $hood_id
  * @property string $first_name
  * @property string $last_name
+ * @property string|null $alias
+ * @property Carbon|null $birthdate
+ * @property string|null $avatar_path
  * @property string $email
  * @property string|null $phone
  * @property string|null $address
@@ -36,12 +40,17 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read string $full_name
  * @property-read string $initials
+ * @property-read int|null $age
+ * @property-read string|null $avatar_url
  */
 #[Fillable([
     'branch_id',
     'hood_id',
     'first_name',
     'last_name',
+    'alias',
+    'birthdate',
+    'avatar_path',
     'email',
     'phone',
     'address',
@@ -51,7 +60,7 @@ use Illuminate\Support\Carbon;
     'profile_slug',
     'approved',
 ])]
-#[Appends(['full_name', 'initials'])]
+#[Appends(['full_name', 'initials', 'age', 'avatar_url'])]
 #[UsePolicy(MemberPolicy::class)]
 class Member extends Model
 {
@@ -67,6 +76,7 @@ class Member extends Model
     {
         return [
             'approved' => 'boolean',
+            'birthdate' => 'date',
             'join_date' => 'date',
             'membership_type' => MembershipType::class,
             'status' => MemberStatus::class,
@@ -124,5 +134,37 @@ class Member extends Model
         return Attribute::get(fn (): string => strtoupper(
             mb_substr($this->first_name, 0, 1).mb_substr($this->last_name, 0, 1),
         ));
+    }
+
+    /**
+     * Age derived from the member's birthdate.
+     *
+     * @return Attribute<int|null, never>
+     */
+    protected function age(): Attribute
+    {
+        return Attribute::get(fn (): ?int => $this->birthdate?->age);
+    }
+
+    /**
+     * Public URL for the member's uploaded avatar, if any.
+     *
+     * The path is returned relative so it resolves against whatever host the
+     * app is currently served from (local domain, LAN IP, or tunnel).
+     *
+     * @return Attribute<string|null, never>
+     */
+    protected function avatarUrl(): Attribute
+    {
+        return Attribute::get(function (): ?string {
+            if (blank($this->avatar_path)) {
+                return null;
+            }
+
+            return parse_url(
+                Storage::disk('public')->url($this->avatar_path),
+                PHP_URL_PATH,
+            ) ?: null;
+        });
     }
 }

@@ -10,7 +10,9 @@ use App\Models\Member;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -37,6 +39,7 @@ class MemberController extends Controller
                     $like = '%'.$search.'%';
                     $query->where('first_name', 'like', $like)
                         ->orWhere('last_name', 'like', $like)
+                        ->orWhere('alias', 'like', $like)
                         ->orWhere('email', 'like', $like);
                 });
             })
@@ -81,8 +84,13 @@ class MemberController extends Controller
 
         $validated = $request->validate($this->rules());
 
+        $avatarPath = $request->hasFile('avatar')
+            ? $request->file('avatar')->store('avatars', 'public')
+            : null;
+
         $member = Member::create([
-            ...$validated,
+            ...Arr::except($validated, ['avatar', 'remove_avatar']),
+            'avatar_path' => $avatarPath,
             'profile_slug' => $this->uniqueProfileSlug($validated['first_name'], $validated['last_name']),
             'approved' => $request->boolean('approved'),
         ]);
@@ -107,9 +115,18 @@ class MemberController extends Controller
         }
 
         $validated = $request->validate($this->rules($member->id));
+        $data = Arr::except($validated, ['avatar', 'remove_avatar']);
+
+        if ($request->hasFile('avatar')) {
+            $this->deleteAvatar($member);
+            $data['avatar_path'] = $request->file('avatar')->store('avatars', 'public');
+        } elseif ($request->boolean('remove_avatar')) {
+            $this->deleteAvatar($member);
+            $data['avatar_path'] = null;
+        }
 
         $member->update([
-            ...$validated,
+            ...$data,
             'approved' => $request->boolean('approved'),
         ]);
 
@@ -127,6 +144,8 @@ class MemberController extends Controller
     public function destroy(Member $member): RedirectResponse
     {
         Gate::authorize('delete', $member);
+
+        $this->deleteAvatar($member);
 
         $member->delete();
 
@@ -148,12 +167,46 @@ class MemberController extends Controller
             'hood_id' => ['nullable', 'integer', 'exists:hoods,id'],
             'first_name' => ['required', 'string', 'max:60'],
             'last_name' => ['required', 'string', 'max:60'],
-            'email' => ['required', 'string', app()->runningUnitTests() ? 'email' : 'email:rfc,dns', 'max:100', Rule::unique('members', 'email')->ignore($ignoreId)],
+            'alias' => ['nullable', 'string', 'max:60'],
+            'birthdate' => ['nullable', 'date', 'before_or_equal:today'],
+            'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'remove_avatar' => ['sometimes', 'boolean'],
+            'email' => $this->emailRules($ignoreId),
             'phone' => ['nullable', 'string', 'regex:/^09\d{9}$/', 'max:11', Rule::unique('members', 'phone')->ignore($ignoreId)],
             'address' => ['nullable', 'string', 'max:1000'],
             'membership_type' => ['required', Rule::enum(MembershipType::class)],
             'status' => ['required', Rule::enum(MemberStatus::class)],
             'join_date' => ['required', 'date'],
+        ];
+    }
+
+    /**
+     * Delete the member's stored avatar file, if one exists.
+     */
+    private function deleteAvatar(Member $member): void
+    {
+        if (filled($member->avatar_path)) {
+            Storage::disk('public')->delete($member->avatar_path);
+        }
+    }
+
+    /**
+     * Email rules that skip the DNS lookup for the demo domain so the seeded
+     * members can still be edited.
+     *
+     * @return array<int, mixed>
+     */
+    private function emailRules(?int $ignoreId): array
+    {
+        $email = mb_strtolower((string) request()->input('email', ''));
+        $skipDns = app()->runningUnitTests() || str_ends_with($email, '@mail.demo');
+
+        return [
+            'required',
+            'string',
+            'max:100',
+            $skipDns ? 'email' : 'email:rfc,dns',
+            Rule::unique('members', 'email')->ignore($ignoreId),
         ];
     }
 
