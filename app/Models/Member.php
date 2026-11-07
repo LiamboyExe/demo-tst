@@ -161,10 +161,13 @@ class Member extends Model
                 return null;
             }
 
-            return parse_url(
-                Storage::disk('public')->url($this->avatar_path),
-                PHP_URL_PATH,
-            ) ?: null;
+            $url = Storage::disk('public')->url($this->avatar_path);
+
+            if (config('filesystems.disks.public.driver') === 'local') {
+                return parse_url($url, PHP_URL_PATH) ?: $url;
+            }
+
+            return $url;
         });
     }
 }
