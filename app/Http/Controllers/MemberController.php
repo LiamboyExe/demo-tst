@@ -32,7 +32,7 @@ class MemberController extends Controller
         $hood = $request->integer('hood');
 
         $members = Member::query()
-            ->with(['branch', 'hood', 'nfcCard'])
+            ->with(['branch', 'hood', 'nfcCard', 'user' => fn ($query) => $query->select(['id', 'member_id', 'username', 'must_change_password'])])
             ->visibleTo($user)
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {

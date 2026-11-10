@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\UserRole;
 use App\Models\Branch;
+use App\Models\Member;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -70,6 +71,18 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'role' => UserRole::Local,
             'branch_id' => $branch->id,
+        ]);
+    }
+
+    /**
+     * Indicate that the user is the login account of the given member.
+     */
+    public function member(Member $member): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::Member,
+            'branch_id' => null,
+            'member_id' => $member->id,
         ]);
     }
 

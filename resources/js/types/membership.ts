@@ -61,6 +61,7 @@ export type Member = {
     branch?: Branch;
     hood?: Hood | null;
     nfc_card?: NfcCard | null;
+    user?: MemberUser | null;
     profile_url?: string;
     created_at: string;
     updated_at: string;
@@ -77,6 +78,12 @@ export type NfcCard = {
     member?: Member;
     created_at: string;
     updated_at: string;
+};
+
+export type MemberUser = {
+    id: number;
+    username: string | null;
+    must_change_password: boolean;
 };
 
 export type Paginated<T> = {

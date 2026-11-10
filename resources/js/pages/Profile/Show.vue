@@ -1,26 +1,53 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     Building2,
     CakeSlice,
     CalendarDays,
     CreditCard,
+    EyeOff,
     Home,
+    LockKeyhole,
+    LogOut,
     Mail,
     MapPin,
     MapPinned,
     Phone,
+    ShieldAlert,
     ShieldCheck,
 } from '@lucide/vue';
+import { computed } from 'vue';
 import { formatDate } from '@/lib/format';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import type { Member } from '@/types';
+import { Button } from '@/components/ui/button';
+import { login, logout } from '@/routes';
+import { show as profileShow } from '@/routes/profile';
+import type { Member, User } from '@/types';
 
 const props = defineProps<{
     member: Member;
+    canViewSensitive: boolean;
+    sensitive: {
+        email: string;
+        phone: string | null;
+        address: string | null;
+        birthdate: string | null;
+        age: number | null;
+    } | null;
 }>();
 
+const authUser = computed(() => usePage().props.auth?.user as User | undefined);
+
+// Remember this profile so the login flow returns the member right here.
+const loginHref = login({
+    query: { intended: profileShow.url(props.member.profile_slug) },
+}).url;
+
 const memberId = `TS-${String(props.member.id).padStart(4, '0')}`;
+
+function handleLogout(): void {
+    router.flushAll();
+}
 
 function badgeClass(value: string): string {
     switch (value) {
@@ -156,23 +183,13 @@ function badgeClass(value: string): string {
                         <p
                             class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
                         >
-                            <CakeSlice class="size-3" /> Age
-                        </p>
-                        <p class="mt-1 text-sm">
-                            {{ member.age ?? 'N/A' }}
-                        </p>
-                    </div>
-                    <div>
-                        <p
-                            class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
-                        >
                             <CalendarDays class="size-3" /> Member since
                         </p>
                         <p class="mt-1 text-sm">
                             {{ formatDate(member.join_date) }}
                         </p>
                     </div>
-                    <div>
+                    <div class="sm:col-span-2">
                         <p
                             class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
                         >
@@ -180,34 +197,163 @@ function badgeClass(value: string): string {
                         </p>
                         <p class="mt-1 font-mono text-sm">{{ memberId }}</p>
                     </div>
-                    <div>
+                </div>
+
+                <!-- Private details: only rendered for the member's own
+                     account (or an authorized admin). -->
+                <template v-if="canViewSensitive && sensitive">
+                    <div class="my-6 border-t border-zinc-800" />
+
+                    <div
+                        class="rounded-xl border border-emerald-400/30 bg-emerald-400/5 p-4"
+                    >
                         <p
-                            class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
+                            class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-emerald-300/80 uppercase"
                         >
-                            <Mail class="size-3" /> Email
+                            <LockKeyhole class="size-3" /> Private information
                         </p>
-                        <p class="mt-1 text-sm break-all">
-                            {{ member.email }}
-                        </p>
+
+                        <div
+                            class="mt-3 grid grid-cols-1 gap-4 text-left sm:grid-cols-2"
+                        >
+                            <div>
+                                <p
+                                    class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
+                                >
+                                    <CakeSlice class="size-3" /> Birthdate
+                                </p>
+                                <p class="mt-1 text-sm">
+                                    {{
+                                        sensitive.birthdate
+                                            ? formatDate(sensitive.birthdate)
+                                            : 'N/A'
+                                    }}
+                                </p>
+                            </div>
+                            <div>
+                                <p
+                                    class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
+                                >
+                                    <CalendarDays class="size-3" /> Age
+                                </p>
+                                <p class="mt-1 text-sm">
+                                    {{ sensitive.age ?? 'N/A' }}
+                                </p>
+                            </div>
+                            <div>
+                                <p
+                                    class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
+                                >
+                                    <Mail class="size-3" /> Email
+                                </p>
+                                <p class="mt-1 text-sm break-all">
+                                    {{ sensitive.email }}
+                                </p>
+                            </div>
+                            <div>
+                                <p
+                                    class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
+                                >
+                                    <Phone class="size-3" /> Phone
+                                </p>
+                                <p class="mt-1 text-sm">
+                                    {{ sensitive.phone ?? 'N/A' }}
+                                </p>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <p
+                                    class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
+                                >
+                                    <Home class="size-3" /> Address
+                                </p>
+                                <p class="mt-1 text-sm">
+                                    {{ sensitive.address ?? 'N/A' }}
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <p
-                            class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
+
+                    <div
+                        v-if="authUser"
+                        class="mt-3 flex items-center justify-between gap-2 text-xs text-zinc-500"
+                    >
+                        <p class="flex items-center gap-1">
+                            <ShieldCheck class="size-3 text-emerald-400" />
+                            Signed in as {{ authUser.name }}
+                        </p>
+                        <Link
+                            :href="logout()"
+                            as="button"
+                            class="inline-flex items-center gap-1 text-zinc-400 transition-colors hover:text-zinc-200"
+                            @click="handleLogout"
                         >
-                            <Phone class="size-3" /> Phone
-                        </p>
-                        <p class="mt-1 text-sm">
-                            {{ member.phone ?? 'N/A' }}
-                        </p>
+                            <LogOut class="size-3" />
+                            Log out
+                        </Link>
                     </div>
-                    <div class="sm:col-span-2">
+                </template>
+
+                <!-- Signed in, but this profile belongs to another member. -->
+                <div
+                    v-else-if="authUser"
+                    class="my-6 border-t border-zinc-800 pt-5"
+                >
+                    <div
+                        class="flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-400/5 p-4"
+                    >
+                        <ShieldAlert
+                            class="mt-0.5 size-5 shrink-0 text-amber-300"
+                        />
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-amber-200">
+                                Private information hidden
+                            </p>
+                            <p
+                                class="mt-1 text-xs leading-relaxed text-amber-200/70"
+                            >
+                                You are signed in as {{ authUser.name }}.
+                                Private details are only shown on the profile
+                                of the member linked to your own account.
+                            </p>
+                            <Link
+                                :href="logout()"
+                                as="button"
+                                class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-200/80 transition-colors hover:text-amber-100"
+                                @click="handleLogout"
+                            >
+                                <LogOut class="size-3" />
+                                Log out
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Anonymous visitor: invite the member to sign in. -->
+                <div v-else class="my-6 border-t border-zinc-800 pt-5">
+                    <div
+                        class="rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 p-4 text-center"
+                    >
+                        <EyeOff
+                            class="mx-auto size-5 text-zinc-500"
+                        />
                         <p
-                            class="flex items-center gap-1 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
+                            class="mt-2 text-[10px] tracking-[0.14em] text-zinc-500 uppercase"
                         >
-                            <Home class="size-3" /> Address
+                            Private information
                         </p>
-                        <p class="mt-1 text-sm">
-                            {{ member.address ?? 'N/A' }}
+                        <p
+                            class="mt-1 text-xs leading-relaxed text-zinc-400"
+                        >
+                            Contact details are only visible to this member.
+                        </p>
+                        <Button as-child class="mt-4 w-full">
+                            <Link :href="loginHref">
+                                <LockKeyhole class="size-4" />
+                                View Sensitive Information
+                            </Link>
+                        </Button>
+                        <p class="mt-2 text-[11px] text-zinc-600">
+                            Member login — you will return to this profile.
                         </p>
                     </div>
                 </div>

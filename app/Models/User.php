@@ -23,6 +23,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $email
  * @property UserRole $role
  * @property int|null $branch_id
+ * @property int|null $member_id
+ * @property bool $must_change_password
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -31,8 +33,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read Member|null $member
  */
-#[Fillable(['name', 'username', 'email', 'password', 'role', 'branch_id'])]
+#[Fillable(['name', 'username', 'email', 'password', 'role', 'branch_id', 'member_id', 'must_change_password'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
@@ -50,6 +53,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'must_change_password' => 'boolean',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
@@ -62,6 +66,16 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return $this->belongsTo(Branch::class);
     }
 
+    /**
+     * The member record this account belongs to when it is a member account.
+     *
+     * @return BelongsTo<Member, $this>
+     */
+    public function member(): BelongsTo
+    {
+        return $this->belongsTo(Member::class);
+    }
+
     public function isMainAdmin(): bool
     {
         return $this->role === UserRole::Main;
@@ -70,5 +84,15 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function isBranchAdmin(): bool
     {
         return $this->role === UserRole::Local;
+    }
+
+    public function isMember(): bool
+    {
+        return $this->role === UserRole::Member;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === UserRole::Main || $this->role === UserRole::Local;
     }
 }

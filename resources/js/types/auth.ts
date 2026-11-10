@@ -1,6 +1,6 @@
 import type { Branch } from './membership';
 
-export type UserRole = 'main' | 'local';
+export type UserRole = 'main' | 'local' | 'member';
 
 export type User = {
     id: number;
@@ -10,6 +10,8 @@ export type User = {
     avatar?: string;
     role: UserRole;
     branch_id: number | null;
+    member_id?: number | null;
+    must_change_password?: boolean;
     branch?: Branch | null;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;

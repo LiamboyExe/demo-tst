@@ -4,6 +4,7 @@ import {
     Building2,
     Crop,
     Eye,
+    KeyRound,
     Pencil,
     Plus,
     Search,
@@ -15,6 +16,7 @@ import {
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import PaginationFooter from '@/components/PaginationFooter.vue';
+import PasswordInput from '@/components/PasswordInput.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -30,8 +32,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import { formatDate, today } from '@/lib/format';
 import { index as branchesIndex } from '@/routes/branches';
+import {
+    destroy as destroyAccount,
+    store as storeAccount,
+} from '@/routes/members/account';
 import {
     destroy as destroyMember,
     index as membersIndex,
@@ -693,6 +700,77 @@ function destroy(): void {
         onSuccess: () => {
             deleteOpen.value = false;
             deleteTarget.value = null;
+        },
+    });
+}
+
+// --- Member login accounts ---
+
+const accountOpen = ref(false);
+const accountTarget = ref<Member | null>(null);
+const accountForm = useForm({
+    username: '',
+    password: '',
+    password_confirmation: '',
+});
+
+const removeAccountOpen = ref(false);
+const removeAccountTarget = ref<Member | null>(null);
+
+function openAccountDialog(member: Member): void {
+    accountTarget.value = member;
+    accountForm.reset();
+    accountForm.clearErrors();
+    accountOpen.value = true;
+}
+
+function createAccountFromView(): void {
+    if (!viewing.value) {
+        return;
+    }
+
+    viewOpen.value = false;
+    openAccountDialog(viewing.value);
+}
+
+function submitAccount(): void {
+    if (!accountTarget.value) {
+        return;
+    }
+
+    accountForm.post(storeAccount(accountTarget.value.id).url, {
+        preserveScroll: true,
+        onSuccess: () => {
+            accountOpen.value = false;
+            accountTarget.value = null;
+        },
+    });
+}
+
+function confirmRemoveAccount(member: Member): void {
+    removeAccountTarget.value = member;
+    removeAccountOpen.value = true;
+}
+
+function removeAccountFromView(): void {
+    if (!viewing.value) {
+        return;
+    }
+
+    viewOpen.value = false;
+    confirmRemoveAccount(viewing.value);
+}
+
+function removeAccount(): void {
+    if (!removeAccountTarget.value) {
+        return;
+    }
+
+    router.delete(destroyAccount(removeAccountTarget.value.id).url, {
+        preserveScroll: true,
+        onSuccess: () => {
+            removeAccountOpen.value = false;
+            removeAccountTarget.value = null;
         },
     });
 }
@@ -1873,6 +1951,58 @@ onUnmounted(() => {
                         Not visible publicly until approved.
                     </p>
                 </div>
+
+                <div class="rounded-lg border p-3 text-sm">
+                    <div
+                        class="flex items-center justify-between gap-2"
+                    >
+                        <p
+                            class="text-[10px] font-medium tracking-wide text-muted-foreground uppercase"
+                        >
+                            Login account
+                        </p>
+                        <StatusBadge
+                            v-if="viewing.user"
+                            status="Active"
+                        />
+                    </div>
+
+                    <div v-if="viewing.user" class="mt-2 space-y-1">
+                        <p class="font-mono">{{ viewing.user.username }}</p>
+                        <p
+                            v-if="viewing.user.must_change_password"
+                            class="text-xs text-amber-600 dark:text-amber-400"
+                        >
+                            Temporary password — must be changed on first
+                            login.
+                        </p>
+                    </div>
+                    <p v-else class="mt-2 text-muted-foreground">
+                        No login account yet.
+                    </p>
+
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <Button
+                            v-if="!viewing.user"
+                            variant="outline"
+                            size="sm"
+                            @click="createAccountFromView"
+                        >
+                            <KeyRound class="size-3.5" />
+                            Create account
+                        </Button>
+                        <Button
+                            v-else
+                            variant="outline"
+                            size="sm"
+                            class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            @click="removeAccountFromView"
+                        >
+                            <Trash2 class="size-3.5" />
+                            Remove account
+                        </Button>
+                    </div>
+                </div>
             </div>
 
             <DialogFooter>
@@ -1899,6 +2029,107 @@ onUnmounted(() => {
                 </Button>
                 <Button variant="destructive" @click="destroy">
                     Delete member
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="accountOpen">
+        <DialogContent>
+            <form class="space-y-4" @submit.prevent="submitAccount">
+                <DialogHeader>
+                    <DialogTitle>Create login account</DialogTitle>
+                    <DialogDescription>
+                        {{
+                            accountTarget
+                                ? `${accountTarget.full_name} will sign in with this username and a temporary password, then choose a new password on first login.`
+                                : 'Create a temporary login account for this member.'
+                        }}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div class="space-y-1.5">
+                    <Label for="account-username">Username</Label>
+                    <Input
+                        id="account-username"
+                        v-model="accountForm.username"
+                        type="text"
+                        autocomplete="off"
+                        class="mt-1 block w-full"
+                        placeholder="e.g. juan.santos"
+                    />
+                    <InputError :message="accountForm.errors.username" />
+                </div>
+
+                <div class="space-y-1.5">
+                    <Label for="account-password">Temporary password</Label>
+                    <PasswordInput
+                        id="account-password"
+                        v-model="accountForm.password"
+                        autocomplete="new-password"
+                        placeholder="At least 8 characters"
+                        class="mt-1 block w-full"
+                    />
+                    <InputError :message="accountForm.errors.password" />
+                </div>
+
+                <div class="space-y-1.5">
+                    <Label for="account-password-confirmation">
+                        Confirm temporary password
+                    </Label>
+                    <PasswordInput
+                        id="account-password-confirmation"
+                        v-model="accountForm.password_confirmation"
+                        autocomplete="new-password"
+                        placeholder="Repeat the temporary password"
+                        class="mt-1 block w-full"
+                    />
+                    <InputError
+                        :message="accountForm.errors.password_confirmation"
+                    />
+                </div>
+
+                <DialogFooter>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        @click="accountOpen = false"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        :disabled="accountForm.processing"
+                    >
+                        <Spinner v-if="accountForm.processing" />
+                        Create account
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="removeAccountOpen">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Remove login account?</DialogTitle>
+                <DialogDescription>
+                    {{
+                        removeAccountTarget
+                            ? `${removeAccountTarget.full_name} will no longer be able to sign in. Their member record and NFC card are kept.`
+                            : 'This member will no longer be able to sign in.'
+                    }}
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+                <Button
+                    variant="secondary"
+                    @click="removeAccountOpen = false"
+                >
+                    Cancel
+                </Button>
+                <Button variant="destructive" @click="removeAccount">
+                    Remove account
                 </Button>
             </DialogFooter>
         </DialogContent>
