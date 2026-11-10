@@ -69,14 +69,10 @@ class FortifyServiceProvider extends ServiceProvider
      */
     private function configureViews(): void
     {
-        Fortify::loginView(function (Request $request) {
-            $this->captureIntendedDestination($request);
-
-            return Inertia::render('auth/Login', [
-                'canResetPassword' => Features::enabled(Features::resetPasswords()),
-                'status' => $request->session()->get('status'),
-            ]);
-        });
+        Fortify::loginView(fn (Request $request) => Inertia::render('auth/Login', [
+            'canResetPassword' => Features::enabled(Features::resetPasswords()),
+            'status' => $request->session()->get('status'),
+        ]));
 
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/ResetPassword', [
             'email' => $request->email,
@@ -99,29 +95,6 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/TwoFactorChallenge'));
 
         Fortify::confirmPasswordView(fn () => Inertia::render('auth/ConfirmPassword'));
-    }
-
-    /**
-     * Remember where the visitor wanted to go so successful logins return
-     * there (e.g. back to the NFC profile that asked for the login).
-     *
-     * Only plain same-application paths are accepted: anything carrying a
-     * host, a scheme, or a scheme-relative prefix is rejected outright so
-     * the login redirect can never be used as an open redirect.
-     */
-    private function captureIntendedDestination(Request $request): void
-    {
-        $intended = (string) $request->query('intended', '');
-
-        if ($intended === '' || ! str_starts_with($intended, '/') || str_starts_with($intended, '//')) {
-            return;
-        }
-
-        if (str_contains($intended, '\\') || parse_url($intended, PHP_URL_HOST) !== null) {
-            return;
-        }
-
-        redirect()->setIntendedUrl($intended);
     }
 
     /**

@@ -83,23 +83,6 @@ class DatabaseSeeder extends Seeder
                 ],
             );
         }
-
-        // --- Demo Member Account (Juan Santos) ---
-        // Shows the member login flow: sign in on the NFC profile, then the
-        // forced temporary-password change on first login.
-        $juan = Member::query()->where('profile_slug', 'cl-m1-santos-juan')->first();
-
-        if ($juan !== null && $juan->user()->doesntExist()) {
-            $juan->user()->create([
-                'name' => $juan->full_name,
-                'username' => 'juan',
-                'email' => $juan->email,
-                'password' => 'juan123456',
-                'role' => UserRole::Member,
-                'must_change_password' => true,
-                'email_verified_at' => now(),
-            ]);
-        }
     }
 
     /**

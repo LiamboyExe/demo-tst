@@ -108,16 +108,6 @@ class Member extends Model
     }
 
     /**
-     * The member's login account, when an administrator has created one.
-     *
-     * @return HasOne<User, $this>
-     */
-    public function user(): HasOne
-    {
-        return $this->hasOne(User::class);
-    }
-
-    /**
      * Limit the query to the branches the given user may see.
      */
     #[Scope]

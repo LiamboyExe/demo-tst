@@ -212,32 +212,6 @@ function fillDemo(username: string, pass: string): void {
                         >Use &rarr;</span
                     >
                 </button>
-
-                <button
-                    type="button"
-                    @click="fillDemo('juan', 'juan123456')"
-                    class="flex items-center justify-between rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-accent hover:text-accent-foreground"
-                >
-                    <div>
-                        <div class="flex items-center gap-1.5">
-                            <span class="font-medium text-foreground"
-                                >Juan Santos (Member)</span
-                            >
-                            <span
-                                class="py-0.2 rounded bg-amber-500/10 px-1.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400"
-                                >Member</span
-                            >
-                        </div>
-                        <p
-                            class="mt-0.5 font-mono text-[11px] text-muted-foreground"
-                        >
-                            juan <span class="text-border">/</span> juan123456
-                        </p>
-                    </div>
-                    <span class="text-[11px] font-medium text-primary"
-                        >Use &rarr;</span
-                    >
-                </button>
             </div>
         </div>
     </Form>
