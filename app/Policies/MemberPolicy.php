@@ -27,13 +27,14 @@ class MemberPolicy
      * Determine whether the user can view the member's sensitive profile
      * details (contact information and birthdate) on the NFC profile.
      *
-     * Member accounts may only view their own record; administrators follow
-     * the normal territory rules.
+     * Member accounts may only view their own record and only once their
+     * account has been activated; administrators follow the normal
+     * territory rules.
      */
     public function viewSensitive(User $user, Member $member): bool
     {
         if ($user->isMember()) {
-            return $user->member_id === $member->id;
+            return $user->member_id === $member->id && $user->isActivated();
         }
 
         return $this->view($user, $member);
@@ -54,6 +55,15 @@ class MemberPolicy
     {
         return $user->isMainAdmin()
             || ($user->isBranchAdmin() && $user->branch_id === $member->branch_id);
+    }
+
+    /**
+     * Determine whether the user can read the member's pending temporary
+     * activation credentials.
+     */
+    public function viewTemporaryCredentials(User $user, Member $member): bool
+    {
+        return $this->createAccount($user, $member);
     }
 
     /**

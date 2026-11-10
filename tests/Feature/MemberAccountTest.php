@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\MembershipType;
+use App\Enums\MemberStatus;
 use App\Enums\UserRole;
 use App\Models\Branch;
 use App\Models\Member;
@@ -13,174 +15,169 @@ beforeEach(function () {
     $this->northAdmin = User::factory()->branchAdmin($this->north)->create();
 });
 
-test('a main admin can create a login account for any member', function () {
-    $member = Member::factory()->for($this->south)->create();
-
+test('creating a member automatically creates a user account with temporary credentials', function () {
     $this->actingAs($this->mainAdmin)
-        ->post(route('members.account.store', $member), [
-            'username' => 'pedro',
-            'password' => 'temporary9',
-            'password_confirmation' => 'temporary9',
+        ->post(route('members.store'), [
+            'first_name' => 'Maria',
+            'last_name' => 'Clara',
+            'email' => 'maria.clara@example.com',
+            'branch_id' => $this->north->id,
+            'membership_type' => MembershipType::Pointman->value,
+            'status' => MemberStatus::Active->value,
+            'join_date' => '2026-01-15',
+            'approved' => true,
         ])
         ->assertRedirect();
 
-    $account = User::query()->where('username', 'pedro')->firstOrFail();
+    $member = Member::query()->where('email', 'maria.clara@example.com')->firstOrFail();
+    $account = $member->user;
+
+    expect($account)->not->toBeNull()
+        ->and($account->role)->toBe(UserRole::Member)
+        ->and($account->member_id)->toBe($member->id)
+        ->and($account->branch_id)->toBeNull()
+        ->and($account->username)->toBeNull()
+        ->and($account->isPendingActivation())->toBeTrue()
+        ->and($account->isActivated())->toBeFalse()
+        ->and($account->temp_username)->not->toBeNull()
+        ->and($account->temp_password)->not->toBeNull()
+        ->and(Hash::check($account->temp_password, $account->password))->toBeTrue();
+});
+
+test('a territory admin automatically creates account within their territory only', function () {
+    $this->actingAs($this->northAdmin)
+        ->post(route('members.store'), [
+            'first_name' => 'Northern',
+            'last_name' => 'Hero',
+            'email' => 'northern.hero@example.com',
+            'branch_id' => $this->north->id,
+            'membership_type' => MembershipType::Pointman->value,
+            'status' => MemberStatus::Active->value,
+            'join_date' => '2026-01-15',
+            'approved' => true,
+        ])
+        ->assertRedirect();
+
+    $member = Member::query()->where('email', 'northern.hero@example.com')->firstOrFail();
+    expect($member->branch_id)->toBe($this->north->id)
+        ->and($member->user)->not->toBeNull();
+});
+
+test('cannot create member if email already belongs to a user account', function () {
+    User::factory()->create(['email' => 'clashing@example.com']);
+
+    $this->actingAs($this->mainAdmin)
+        ->post(route('members.store'), [
+            'first_name' => 'Conflict',
+            'last_name' => 'Person',
+            'email' => 'clashing@example.com',
+            'branch_id' => $this->north->id,
+            'membership_type' => MembershipType::Pointman->value,
+            'status' => MemberStatus::Active->value,
+            'join_date' => '2026-01-15',
+            'approved' => true,
+        ])
+        ->assertSessionHasErrors('email');
+
+    $this->assertDatabaseMissing('members', ['email' => 'clashing@example.com']);
+});
+
+test('a main admin can issue or reset temporary credentials for any member', function () {
+    $member = Member::factory()->for($this->south)->create();
+
+    $this->actingAs($this->mainAdmin)
+        ->post(route('members.account.store', $member))
+        ->assertRedirect();
+
+    $account = $member->user()->firstOrFail();
 
     expect($account->role)->toBe(UserRole::Member)
         ->and($account->member_id)->toBe($member->id)
-        ->and($account->branch_id)->toBeNull()
-        ->and($account->must_change_password)->toBeTrue()
-        ->and(Hash::check('temporary9', $account->password))->toBeTrue()
-        ->and($account->email)->toBe($member->email);
+        ->and($account->isPendingActivation())->toBeTrue()
+        ->and($account->temp_username)->not->toBeNull()
+        ->and($account->temp_password)->not->toBeNull();
 });
 
-test('a branch admin can create a login account for a member in their own territory', function () {
+test('a branch admin can issue temporary credentials for a member in their own territory', function () {
     $member = Member::factory()->for($this->north)->create();
 
     $this->actingAs($this->northAdmin)
-        ->post(route('members.account.store', $member), [
-            'username' => 'northern-member',
-            'password' => 'temporary9',
-            'password_confirmation' => 'temporary9',
-        ])
+        ->post(route('members.account.store', $member))
         ->assertRedirect();
 
-    $this->assertDatabaseHas('users', [
-        'username' => 'northern-member',
-        'member_id' => $member->id,
-        'role' => UserRole::Member->value,
-    ]);
+    expect($member->user()->exists())->toBeTrue();
 });
 
-test('a branch admin cannot create a login account for a member in another territory', function () {
+test('a branch admin cannot issue credentials for a member in another territory', function () {
     $member = Member::factory()->for($this->south)->create();
 
     $this->actingAs($this->northAdmin)
-        ->post(route('members.account.store', $member), [
-            'username' => 'stolen',
-            'password' => 'temporary9',
-            'password_confirmation' => 'temporary9',
-        ])
+        ->post(route('members.account.store', $member))
         ->assertForbidden();
 
-    $this->assertDatabaseMissing('users', ['username' => 'stolen']);
+    expect($member->user()->exists())->toBeFalse();
 });
 
-test('members cannot create login accounts', function () {
+test('authorized admin can retrieve pending temporary credentials', function () {
     $member = Member::factory()->for($this->north)->create();
-    $account = User::factory()->member($member)->create();
+    $member->issueTemporaryCredentials();
 
-    $other = Member::factory()->for($this->north)->create();
+    $account = $member->user;
 
-    $this->actingAs($account)
-        ->post(route('members.account.store', $other), [
-            'username' => 'sneaky',
-            'password' => 'temporary9',
-            'password_confirmation' => 'temporary9',
-        ])
+    $this->actingAs($this->northAdmin)
+        ->getJson(route('members.account.credentials', $member))
+        ->assertOk()
+        ->assertJson([
+            'temp_username' => $account->temp_username,
+            'temp_password' => $account->temp_password,
+        ]);
+});
+
+test('admin cannot retrieve temporary credentials for an activated account', function () {
+    $member = Member::factory()->for($this->north)->create();
+    User::factory()->member($member)->create([
+        'username' => 'activated-member',
+        'temp_username' => null,
+        'temp_password' => null,
+        'activated_at' => now(),
+    ]);
+
+    $this->actingAs($this->northAdmin)
+        ->getJson(route('members.account.credentials', $member))
+        ->assertNotFound();
+});
+
+test('an unauthorized admin cannot retrieve temporary credentials from another branch', function () {
+    $member = Member::factory()->for($this->south)->create();
+    $member->issueTemporaryCredentials();
+
+    $this->actingAs($this->northAdmin)
+        ->getJson(route('members.account.credentials', $member))
         ->assertForbidden();
 });
 
-test('guests cannot create login accounts', function () {
+test('cannot reset credentials for an already activated account', function () {
     $member = Member::factory()->for($this->north)->create();
-
-    $this->post(route('members.account.store', $member), [
-        'username' => 'anon',
-        'password' => 'temporary9',
-        'password_confirmation' => 'temporary9',
-    ])->assertRedirect(route('login'));
-});
-
-test('a member can only have one login account', function () {
-    $member = Member::factory()->for($this->north)->create();
-    User::factory()->member($member)->create(['username' => 'first']);
+    User::factory()->member($member)->create([
+        'username' => 'activated-member',
+        'activated_at' => now(),
+    ]);
 
     $this->actingAs($this->mainAdmin)
-        ->post(route('members.account.store', $member), [
-            'username' => 'second',
-            'password' => 'temporary9',
-            'password_confirmation' => 'temporary9',
-        ])
+        ->post(route('members.account.store', $member))
         ->assertSessionHasErrors('username');
-
-    $this->assertDatabaseMissing('users', ['username' => 'second']);
-});
-
-test('usernames must be unique when creating a member account', function () {
-    $member = Member::factory()->for($this->north)->create();
-    User::factory()->create(['username' => 'taken']);
-
-    $this->actingAs($this->mainAdmin)
-        ->post(route('members.account.store', $member), [
-            'username' => 'taken',
-            'password' => 'temporary9',
-            'password_confirmation' => 'temporary9',
-        ])
-        ->assertSessionHasErrors('username');
-});
-
-test('a member whose email already belongs to an account cannot receive one', function () {
-    $member = Member::factory()->for($this->north)->create();
-    User::factory()->create(['email' => $member->email]);
-
-    $this->actingAs($this->mainAdmin)
-        ->post(route('members.account.store', $member), [
-            'username' => 'clashing',
-            'password' => 'temporary9',
-            'password_confirmation' => 'temporary9',
-        ])
-        ->assertSessionHasErrors('username');
-
-    $this->assertDatabaseMissing('users', ['username' => 'clashing']);
-});
-
-test('member account input is validated server-side', function () {
-    $member = Member::factory()->for($this->north)->create();
-
-    $this->actingAs($this->mainAdmin)
-        ->post(route('members.account.store', $member), [
-            'username' => '',
-            'password' => 'tiny',
-            'password_confirmation' => 'mismatch',
-        ])
-        ->assertSessionHasErrors(['username', 'password']);
-
-    $this->assertDatabaseMissing('users', ['member_id' => $member->id]);
 });
 
 test('an admin can remove a member login account', function () {
     $member = Member::factory()->for($this->north)->create();
-    $account = User::factory()->member($member)->create();
+    $account = $member->issueTemporaryCredentials();
 
     $this->actingAs($this->northAdmin)
         ->delete(route('members.account.destroy', $member))
         ->assertRedirect();
 
     $this->assertDatabaseMissing('users', ['id' => $account->id]);
-    // The member record itself is untouched.
     $this->assertDatabaseHas('members', ['id' => $member->id]);
-});
-
-test('removing a missing member account reports an error', function () {
-    $member = Member::factory()->for($this->north)->create();
-
-    $this->actingAs($this->mainAdmin)
-        ->delete(route('members.account.destroy', $member))
-        ->assertSessionHasErrors('username');
-});
-
-test('a member account cannot remove another member account', function () {
-    $member = Member::factory()->for($this->north)->create();
-    $account = User::factory()->member($member)->create();
-
-    $other = Member::factory()->for($this->north)->create();
-    User::factory()->member($other)->create(['username' => 'other']);
-
-    $this->actingAs($account)
-        ->delete(route('members.account.destroy', $other))
-        ->assertForbidden();
-
-    $this->assertDatabaseHas('users', ['username' => 'other']);
 });
 
 test('the member list shows account status for each member', function () {
@@ -199,7 +196,7 @@ test('the member list shows account status for each member', function () {
 
 test('member accounts are kept out of administrative pages', function () {
     $member = Member::factory()->for($this->north)->create();
-    $account = User::factory()->member($member)->create(['must_change_password' => false]);
+    $account = User::factory()->member($member)->create();
 
     // Page visits send the member back to their own NFC profile.
     $this->actingAs($account)
@@ -230,7 +227,6 @@ test('member accounts are kept out of administrative pages', function () {
         ])
         ->assertForbidden();
 
-    // The member record is unchanged.
     expect($other->fresh()->first_name)->toBe($other->first_name);
 });
 

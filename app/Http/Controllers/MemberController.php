@@ -7,14 +7,17 @@ use App\Enums\MemberStatus;
 use App\Models\Branch;
 use App\Models\Hood;
 use App\Models\Member;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -32,7 +35,7 @@ class MemberController extends Controller
         $hood = $request->integer('hood');
 
         $members = Member::query()
-            ->with(['branch', 'hood', 'nfcCard', 'user' => fn ($query) => $query->select(['id', 'member_id', 'username', 'must_change_password'])])
+            ->with(['branch', 'hood', 'nfcCard', 'user' => fn ($query) => $query->select(['id', 'member_id', 'username', 'role', 'activated_at'])])
             ->visibleTo($user)
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
@@ -71,6 +74,10 @@ class MemberController extends Controller
 
     /**
      * Store a new member.
+     *
+     * The member record and its pending activation account (temporary
+     * username and password) are created together inside a transaction, so
+     * a failure cannot leave a member without its account.
      */
     public function store(Request $request): RedirectResponse
     {
@@ -84,20 +91,32 @@ class MemberController extends Controller
 
         $validated = $request->validate($this->rules());
 
+        if (User::query()->where('email', $validated['email'])->exists()) {
+            throw ValidationException::withMessages([
+                'email' => __('The email address :email is already used by a login account.', ['email' => $validated['email']]),
+            ]);
+        }
+
         $avatarPath = $request->hasFile('avatar')
             ? $request->file('avatar')->store('avatars', 'public')
             : null;
 
-        $member = Member::create([
-            ...Arr::except($validated, ['avatar', 'remove_avatar']),
-            'avatar_path' => $avatarPath,
-            'profile_slug' => $this->uniqueProfileSlug($validated['first_name'], $validated['last_name']),
-            'approved' => $request->boolean('approved'),
-        ]);
+        $member = DB::transaction(function () use ($validated, $avatarPath, $request): Member {
+            $member = Member::create([
+                ...Arr::except($validated, ['avatar', 'remove_avatar']),
+                'avatar_path' => $avatarPath,
+                'profile_slug' => $this->uniqueProfileSlug($validated['first_name'], $validated['last_name']),
+                'approved' => $request->boolean('approved'),
+            ]);
+
+            $member->issueTemporaryCredentials();
+
+            return $member;
+        });
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __(':name was added.', ['name' => $member->full_name]),
+            'message' => __(':name was added. Temporary activation credentials were issued — open their details to copy them.', ['name' => $member->full_name]),
         ]);
 
         return back();

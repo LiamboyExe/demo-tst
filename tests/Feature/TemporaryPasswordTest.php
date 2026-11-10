@@ -3,129 +3,129 @@
 use App\Models\Branch;
 use App\Models\Member;
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function () {
     $this->branch = Branch::factory()->create();
     $this->member = Member::factory()->for($this->branch)->create();
-    $this->account = User::factory()->member($this->member)->create([
-        'username' => 'juan',
-        'password' => 'temporary9',
-        'must_change_password' => true,
-    ]);
+    $this->account = $this->member->issueTemporaryCredentials();
 });
 
-test('a member logging in with a temporary password must change it first', function () {
-    $this->get(route('login', ['intended' => '/p/'.$this->member->profile_slug]));
-
+test('a member with temporary credentials cannot sign in through standard login', function () {
     $this->post(route('login.store'), [
-        'email' => 'juan',
-        'password' => 'temporary9',
-    ])->assertRedirect();
-
-    $this->assertAuthenticatedAs($this->account);
-
-    // The profile the member wanted is withheld until the password is set.
-    $this->get('/p/'.$this->member->profile_slug)
-        ->assertRedirect(route('temporary-password.edit'));
-
-    $this->get(route('dashboard'))
-        ->assertRedirect(route('temporary-password.edit'));
-});
-
-test('the temporary password screen renders', function () {
-    $this->actingAs($this->account)
-        ->get(route('temporary-password.edit'))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->component('auth/ChangeTemporaryPassword')
-            ->has('passwordRules'));
-});
-
-test('the temporary password cannot be changed with a wrong current password', function () {
-    $this->actingAs($this->account)
-        ->put(route('temporary-password.update'), [
-            'current_password' => 'wrong-password',
-            'password' => 'new-password-123',
-            'password_confirmation' => 'new-password-123',
-        ])
-        ->assertSessionHasErrors('current_password');
-
-    expect($this->account->fresh()->must_change_password)->toBeTrue();
-});
-
-test('changing the temporary password unlocks the member profile', function () {
-    $this->actingAs($this->account)
-        ->put(route('temporary-password.update'), [
-            'current_password' => 'temporary9',
-            'password' => 'new-password-123',
-            'password_confirmation' => 'new-password-123',
-        ])
-        ->assertRedirect(route('profile.show', $this->member));
-
-    $account = $this->account->fresh();
-
-    expect($account->must_change_password)->toBeFalse();
-
-    // The old temporary password no longer works; the new one does.
-    $this->post(route('logout'));
-
-    $this->post(route('login.store'), [
-        'email' => 'juan',
-        'password' => 'temporary9',
+        'email' => $this->account->temp_username,
+        'password' => $this->account->temp_password,
     ])->assertSessionHasErrors('email');
 
     $this->assertGuest();
+});
 
-    $this->post(route('login.store'), [
-        'email' => 'juan',
-        'password' => 'new-password-123',
-    ])->assertRedirect();
-
-    $this->assertAuthenticatedAs($account);
-
-    // With the password set, the member can reach their own profile again.
-    $this->get('/p/'.$this->member->profile_slug)
+test('the activation screen renders on the member NFC profile', function () {
+    $this->get(route('activation.show', $this->member))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Profile/Activate')
+            ->where('member.full_name', $this->member->full_name)
+            ->where('member.profile_slug', $this->member->profile_slug));
+});
+
+test('activation screen redirects if account is already activated', function () {
+    $this->account->forceFill([
+        'username' => 'activated_user',
+        'activated_at' => now(),
+    ])->save();
+
+    $this->get(route('activation.show', $this->member))
+        ->assertRedirect(route('profile.show', $this->member));
+});
+
+test('activation screen redirects if visitor is already signed in', function () {
+    $other = User::factory()->create();
+
+    $this->actingAs($other)
+        ->get(route('activation.show', $this->member))
+        ->assertRedirect(route('profile.show', $this->member));
+});
+
+test('verifying with wrong temporary credentials fails', function () {
+    $this->post(route('activation.verify', $this->member), [
+        'temp_username' => 'wrong_username',
+        'temp_password' => 'wrong_password',
+    ])->assertSessionHasErrors('temp_username');
+
+    expect(session()->has('activation_user_id'))->toBeFalse();
+});
+
+test('verifying with correct temporary credentials unlocks step 2', function () {
+    $this->post(route('activation.verify', $this->member), [
+        'temp_username' => $this->account->temp_username,
+        'temp_password' => $this->account->temp_password,
+    ])->assertRedirect(route('activation.create', $this->member));
+
+    expect(session('activation_user_id'))->toBe($this->account->id);
+
+    $this->get(route('activation.create', $this->member))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Profile/ActivateAccount')
+            ->where('member.full_name', $this->member->full_name)
+            ->has('passwordRules'));
+});
+
+test('step 2 cannot be accessed without verifying temporary credentials in session', function () {
+    $this->get(route('activation.create', $this->member))
+        ->assertRedirect(route('activation.show', $this->member));
+});
+
+test('cannot use temporary password as permanent password', function () {
+    $tempPass = $this->account->temp_password;
+
+    $this->withSession(['activation_user_id' => $this->account->id])
+        ->post(route('activation.store', $this->member), [
+            'username' => 'permanent_user',
+            'password' => $tempPass,
+            'password_confirmation' => $tempPass,
+        ])
+        ->assertSessionHasErrors('password');
+});
+
+test('permanent username must be unique', function () {
+    User::factory()->create(['username' => 'existing_user']);
+
+    $this->withSession(['activation_user_id' => $this->account->id])
+        ->post(route('activation.store', $this->member), [
+            'username' => 'existing_user',
+            'password' => 'SafePassword123!',
+            'password_confirmation' => 'SafePassword123!',
+        ])
+        ->assertSessionHasErrors('username');
+});
+
+test('completing activation saves permanent credentials, signs in member, and unlocks sensitive profile', function () {
+    $this->withSession(['activation_user_id' => $this->account->id])
+        ->post(route('activation.store', $this->member), [
+            'username' => 'permanent_user',
+            'password' => 'SafePassword123!',
+            'password_confirmation' => 'SafePassword123!',
+        ])
+        ->assertRedirect(route('profile.show', $this->member));
+
+    $this->assertAuthenticatedAs($this->account);
+    expect(session()->has('activation_user_id'))->toBeFalse();
+
+    $account = $this->account->fresh();
+
+    expect($account->username)->toBe('permanent_user')
+        ->and($account->temp_username)->toBeNull()
+        ->and($account->temp_password)->toBeNull()
+        ->and($account->isActivated())->toBeTrue()
+        ->and(Hash::check('SafePassword123!', $account->password))->toBeTrue();
+
+    // Sensitive profile is now viewable by the logged-in member
+    $this->get(route('profile.show', $this->member))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
             ->where('canViewSensitive', true)
             ->where('sensitive.email', $this->member->email));
-});
-
-test('a member who already changed their password is not asked again', function () {
-    $this->account->forceFill(['must_change_password' => false])->save();
-
-    $this->actingAs($this->account)
-        ->get(route('temporary-password.edit'))
-        ->assertRedirect(route('profile.show', $this->member));
-
-    // Administrative pages still keep the member on their own profile.
-    $this->actingAs($this->account)
-        ->get(route('dashboard'))
-        ->assertRedirect(route('profile.show', $this->member));
-});
-
-test('a member can log out while their password change is pending', function () {
-    $this->actingAs($this->account)
-        ->post(route('logout'));
-
-    $this->assertGuest();
-});
-
-test('admins are not affected by the temporary password middleware', function () {
-    $admin = User::factory()->mainAdmin()->create(['must_change_password' => true]);
-
-    $this->actingAs($admin)
-        ->get(route('dashboard'))
-        ->assertRedirect(route('temporary-password.edit'));
-
-    // Admins do not have an NFC profile to land on.
-    $this->actingAs($admin)
-        ->put(route('temporary-password.update'), [
-            'current_password' => 'password',
-            'password' => 'new-password-123',
-            'password_confirmation' => 'new-password-123',
-        ])
-        ->assertRedirect(route('dashboard', absolute: false));
-
-    expect($admin->fresh()->must_change_password)->toBeFalse();
 });

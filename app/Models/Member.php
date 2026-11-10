@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\MembershipType;
 use App\Enums\MemberStatus;
+use App\Enums\UserRole;
 use App\Policies\MemberPolicy;
 use Database\Factories\MemberFactory;
 use Illuminate\Database\Eloquent\Attributes\Appends;
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
@@ -108,13 +110,65 @@ class Member extends Model
     }
 
     /**
-     * The member's login account, when an administrator has created one.
+     * The member's login account, when one has been issued for them.
      *
      * @return HasOne<User, $this>
      */
     public function user(): HasOne
     {
         return $this->hasOne(User::class);
+    }
+
+    /**
+     * Issue (or reset) the member's pending activation account with fresh
+     * temporary credentials.
+     *
+     * The temporary password is stored both hashed (it becomes the account
+     * password until activation replaces it) and encrypted (so an
+     * authorized administrator can still read it back while the account
+     * waits for activation). Called inside a transaction together with the
+     * member record when a member is added.
+     */
+    public function issueTemporaryCredentials(): User
+    {
+        $tempUsername = $this->uniqueTempUsername();
+        $tempPassword = Str::password(16, symbols: false);
+
+        $attributes = [
+            'name' => $this->full_name,
+            'email' => $this->email,
+            'username' => null,
+            'password' => $tempPassword,
+            'role' => UserRole::Member,
+            'temp_username' => $tempUsername,
+            'temp_password' => $tempPassword,
+            'activated_at' => null,
+            'email_verified_at' => now(),
+        ];
+
+        $account = $this->user()->first();
+
+        if ($account === null) {
+            return $this->user()->create($attributes);
+        }
+
+        $account->forceFill($attributes)->save();
+
+        return $account->refresh();
+    }
+
+    /**
+     * Derive a unique temporary username from the member's name.
+     */
+    private function uniqueTempUsername(): string
+    {
+        $base = Str::limit(Str::slug($this->full_name) ?: 'member', 40, '');
+
+        do {
+            $username = $base.'-'.Str::lower(Str::random(4));
+        } while (User::query()->where('temp_username', $username)->orWhere('username', $username)->exists());
+
+        return $username;
     }
 
     /**

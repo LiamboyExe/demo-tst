@@ -2,11 +2,14 @@
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     Building2,
+    Check,
+    Copy,
     Crop,
     Eye,
     KeyRound,
     Pencil,
     Plus,
+    RefreshCw,
     Search,
     Trash2,
     X,
@@ -36,6 +39,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { formatDate, today } from '@/lib/format';
 import { index as branchesIndex } from '@/routes/branches';
 import {
+    credentials as accountCredentials,
     destroy as destroyAccount,
     store as storeAccount,
 } from '@/routes/members/account';
@@ -623,6 +627,12 @@ function openCreate(): void {
 function openView(member: Member): void {
     viewing.value = member;
     viewOpen.value = true;
+    tempCredentials.value = null;
+    copiedUsername.value = false;
+    copiedPassword.value = false;
+    if (member.user && !member.user.activated_at) {
+        loadCredentials(member.id);
+    }
 }
 
 function editFromView(): void {
@@ -706,45 +716,89 @@ function destroy(): void {
 
 // --- Member login accounts ---
 
-const accountOpen = ref(false);
-const accountTarget = ref<Member | null>(null);
-const accountForm = useForm({
-    username: '',
-    password: '',
-    password_confirmation: '',
-});
+const tempCredentials = ref<{ temp_username: string; temp_password: string } | null>(null);
+const loadingCredentials = ref(false);
+const issuingAccount = ref(false);
+const copiedUsername = ref(false);
+const copiedPassword = ref(false);
+
+async function loadCredentials(memberId: number): Promise<void> {
+    loadingCredentials.value = true;
+    tempCredentials.value = null;
+    try {
+        const response = await fetch(accountCredentials(memberId).url, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        if (response.ok) {
+            tempCredentials.value = await response.json();
+        }
+    } catch {
+        tempCredentials.value = null;
+    } finally {
+        loadingCredentials.value = false;
+    }
+}
+
+async function copyToClipboard(text: string, type: 'username' | 'password'): Promise<void> {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const el = document.createElement('textarea');
+            el.value = text;
+            el.style.position = 'absolute';
+            el.style.left = '-9999px';
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+        }
+
+        if (type === 'username') {
+            copiedUsername.value = true;
+            setTimeout(() => {
+                copiedUsername.value = false;
+            }, 2000);
+        } else {
+            copiedPassword.value = true;
+            setTimeout(() => {
+                copiedPassword.value = false;
+            }, 2000);
+        }
+    } catch (e) {
+        console.error('Failed to copy', e);
+    }
+}
 
 const removeAccountOpen = ref(false);
 const removeAccountTarget = ref<Member | null>(null);
 
-function openAccountDialog(member: Member): void {
-    accountTarget.value = member;
-    accountForm.reset();
-    accountForm.clearErrors();
-    accountOpen.value = true;
-}
-
-function createAccountFromView(): void {
+function issueAccountFromView(): void {
     if (!viewing.value) {
         return;
     }
-
-    viewOpen.value = false;
-    openAccountDialog(viewing.value);
-}
-
-function submitAccount(): void {
-    if (!accountTarget.value) {
-        return;
-    }
-
-    accountForm.post(storeAccount(accountTarget.value.id).url, {
-        preserveScroll: true,
-        onSuccess: () => {
-            accountOpen.value = false;
-            accountTarget.value = null;
+    const memberId = viewing.value.id;
+    issuingAccount.value = true;
+    router.post(
+        storeAccount(memberId).url,
+        {},
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                const updated = props.members.data.find((m) => m.id === memberId);
+                if (updated) {
+                    viewing.value = updated;
+                }
+                loadCredentials(memberId);
+            },
+            onFinish: () => {
+                issuingAccount.value = false;
+            },
         },
-    });
+    );
 }
 
 function confirmRemoveAccount(member: Member): void {
@@ -766,11 +820,17 @@ function removeAccount(): void {
         return;
     }
 
-    router.delete(destroyAccount(removeAccountTarget.value.id).url, {
+    const memberId = removeAccountTarget.value.id;
+    router.delete(destroyAccount(memberId).url, {
         preserveScroll: true,
         onSuccess: () => {
             removeAccountOpen.value = false;
             removeAccountTarget.value = null;
+            if (viewing.value && viewing.value.id === memberId) {
+                const updated = props.members.data.find((m) => m.id === memberId);
+                viewing.value = updated ?? { ...viewing.value, user: null };
+                tempCredentials.value = null;
+            }
         },
     });
 }
@@ -1952,55 +2012,208 @@ onUnmounted(() => {
                     </p>
                 </div>
 
-                <div class="rounded-lg border p-3 text-sm">
-                    <div
-                        class="flex items-center justify-between gap-2"
-                    >
+                <div class="rounded-lg border p-3.5 text-sm space-y-3">
+                    <div class="flex items-center justify-between gap-2">
                         <p
                             class="text-[10px] font-medium tracking-wide text-muted-foreground uppercase"
                         >
                             Login account
                         </p>
-                        <StatusBadge
+                        <span
                             v-if="viewing.user"
-                            status="Active"
-                        />
+                            class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                            :class="
+                                viewing.user.activated_at
+                                    ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                    : 'border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            "
+                        >
+                            {{
+                                viewing.user.activated_at
+                                    ? 'Active'
+                                    : 'Pending Activation'
+                            }}
+                        </span>
+                        <span
+                            v-else
+                            class="inline-flex items-center rounded-full border border-zinc-500/20 bg-zinc-500/10 px-2 py-0.5 text-xs font-medium text-zinc-500"
+                        >
+                            No Account
+                        </span>
                     </div>
 
-                    <div v-if="viewing.user" class="mt-2 space-y-1">
-                        <p class="font-mono">{{ viewing.user.username }}</p>
+                    <!-- Activated Member Account -->
+                    <div
+                        v-if="viewing.user && viewing.user.activated_at"
+                        class="space-y-1"
+                    >
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-muted-foreground">Username</span>
+                            <span class="font-mono font-medium">{{
+                                viewing.user.username
+                            }}</span>
+                        </div>
                         <p
-                            v-if="viewing.user.must_change_password"
-                            class="text-xs text-amber-600 dark:text-amber-400"
+                            class="text-xs text-emerald-600 dark:text-emerald-400"
                         >
-                            Temporary password — must be changed on first
-                            login.
+                            Account activated. Member signs in with their
+                            permanent credentials.
                         </p>
                     </div>
-                    <p v-else class="mt-2 text-muted-foreground">
-                        No login account yet.
-                    </p>
 
-                    <div class="mt-3 flex flex-wrap gap-2">
+                    <!-- Pending Activation Member Account -->
+                    <div v-else-if="viewing.user" class="space-y-2.5">
+                        <p class="text-xs text-amber-600 dark:text-amber-400">
+                            Account is pending activation. Share these temporary
+                            credentials with the member:
+                        </p>
+
+                        <div
+                            v-if="loadingCredentials"
+                            class="flex items-center gap-2 py-2 text-xs text-muted-foreground"
+                        >
+                            <Spinner class="size-3.5" /> Loading credentials...
+                        </div>
+
+                        <div
+                            v-else-if="tempCredentials"
+                            class="space-y-2 rounded-md border border-dashed bg-muted/50 p-2.5"
+                        >
+                            <div
+                                class="flex items-center justify-between gap-2"
+                            >
+                                <div class="min-w-0">
+                                    <p
+                                        class="text-[10px] text-muted-foreground uppercase"
+                                    >
+                                        Temporary Username
+                                    </p>
+                                    <p
+                                        class="font-mono text-xs font-semibold select-all"
+                                    >
+                                        {{ tempCredentials.temp_username }}
+                                    </p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="h-7 text-xs"
+                                    @click="
+                                        copyToClipboard(
+                                            tempCredentials.temp_username,
+                                            'username',
+                                        )
+                                    "
+                                >
+                                    <Check
+                                        v-if="copiedUsername"
+                                        class="mr-1 size-3 text-emerald-500"
+                                    />
+                                    <Copy v-else class="mr-1 size-3" />
+                                    {{ copiedUsername ? 'Copied' : 'Copy' }}
+                                </Button>
+                            </div>
+
+                            <div
+                                class="flex items-center justify-between gap-2 border-t border-border/50 pt-1"
+                            >
+                                <div class="min-w-0">
+                                    <p
+                                        class="text-[10px] text-muted-foreground uppercase"
+                                    >
+                                        Temporary Password
+                                    </p>
+                                    <p
+                                        class="font-mono text-xs font-semibold select-all"
+                                    >
+                                        {{ tempCredentials.temp_password }}
+                                    </p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="h-7 text-xs"
+                                    @click="
+                                        copyToClipboard(
+                                            tempCredentials.temp_password,
+                                            'password',
+                                        )
+                                    "
+                                >
+                                    <Check
+                                        v-if="copiedPassword"
+                                        class="mr-1 size-3 text-emerald-500"
+                                    />
+                                    <Copy v-else class="mr-1 size-3" />
+                                    {{ copiedPassword ? 'Copied' : 'Copy' }}
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div v-else class="text-xs text-muted-foreground">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                @click="loadCredentials(viewing.id)"
+                            >
+                                <Eye class="mr-1 size-3.5" />
+                                Reveal temporary credentials
+                            </Button>
+                        </div>
+                    </div>
+
+                    <!-- No Account Yet -->
+                    <div v-else class="text-xs text-muted-foreground">
+                        <p>
+                            No login account yet. You can generate temporary
+                            credentials for this member.
+                        </p>
+                    </div>
+
+                    <!-- Action buttons -->
+                    <div class="flex flex-wrap gap-2 pt-1">
                         <Button
                             v-if="!viewing.user"
                             variant="outline"
                             size="sm"
-                            @click="createAccountFromView"
+                            :disabled="issuingAccount"
+                            @click="issueAccountFromView"
                         >
-                            <KeyRound class="size-3.5" />
-                            Create account
+                            <Spinner
+                                v-if="issuingAccount"
+                                class="mr-1 size-3.5"
+                            />
+                            <KeyRound v-else class="mr-1 size-3.5" />
+                            Generate temporary credentials
                         </Button>
-                        <Button
-                            v-else
-                            variant="outline"
-                            size="sm"
-                            class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            @click="removeAccountFromView"
-                        >
-                            <Trash2 class="size-3.5" />
-                            Remove account
-                        </Button>
+                        <template v-else>
+                            <Button
+                                v-if="!viewing.user.activated_at"
+                                variant="outline"
+                                size="sm"
+                                :disabled="issuingAccount"
+                                @click="issueAccountFromView"
+                            >
+                                <Spinner
+                                    v-if="issuingAccount"
+                                    class="mr-1 size-3.5"
+                                />
+                                <RefreshCw v-else class="mr-1 size-3.5" />
+                                Reset temporary credentials
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                @click="removeAccountFromView"
+                            >
+                                <Trash2 class="mr-1 size-3.5" />
+                                Remove account
+                            </Button>
+                        </template>
                     </div>
                 </div>
             </div>
@@ -2034,80 +2247,6 @@ onUnmounted(() => {
         </DialogContent>
     </Dialog>
 
-    <Dialog v-model:open="accountOpen">
-        <DialogContent>
-            <form class="space-y-4" @submit.prevent="submitAccount">
-                <DialogHeader>
-                    <DialogTitle>Create login account</DialogTitle>
-                    <DialogDescription>
-                        {{
-                            accountTarget
-                                ? `${accountTarget.full_name} will sign in with this username and a temporary password, then choose a new password on first login.`
-                                : 'Create a temporary login account for this member.'
-                        }}
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div class="space-y-1.5">
-                    <Label for="account-username">Username</Label>
-                    <Input
-                        id="account-username"
-                        v-model="accountForm.username"
-                        type="text"
-                        autocomplete="off"
-                        class="mt-1 block w-full"
-                        placeholder="e.g. juan.santos"
-                    />
-                    <InputError :message="accountForm.errors.username" />
-                </div>
-
-                <div class="space-y-1.5">
-                    <Label for="account-password">Temporary password</Label>
-                    <PasswordInput
-                        id="account-password"
-                        v-model="accountForm.password"
-                        autocomplete="new-password"
-                        placeholder="At least 8 characters"
-                        class="mt-1 block w-full"
-                    />
-                    <InputError :message="accountForm.errors.password" />
-                </div>
-
-                <div class="space-y-1.5">
-                    <Label for="account-password-confirmation">
-                        Confirm temporary password
-                    </Label>
-                    <PasswordInput
-                        id="account-password-confirmation"
-                        v-model="accountForm.password_confirmation"
-                        autocomplete="new-password"
-                        placeholder="Repeat the temporary password"
-                        class="mt-1 block w-full"
-                    />
-                    <InputError
-                        :message="accountForm.errors.password_confirmation"
-                    />
-                </div>
-
-                <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        @click="accountOpen = false"
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        type="submit"
-                        :disabled="accountForm.processing"
-                    >
-                        <Spinner v-if="accountForm.processing" />
-                        Create account
-                    </Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
-    </Dialog>
 
     <Dialog v-model:open="removeAccountOpen">
         <DialogContent>

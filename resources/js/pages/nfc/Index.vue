@@ -161,7 +161,19 @@ function destroy(): void {
 
 async function copyLink(url: string): Promise<void> {
     try {
-        await navigator.clipboard.writeText(url);
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(url);
+        } else {
+            const el = document.createElement('textarea');
+            el.value = url;
+            el.style.position = 'absolute';
+            el.style.left = '-9999px';
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+        }
+
         toast.success('Profile link copied.');
     } catch {
         toast.error('Could not copy the link.');

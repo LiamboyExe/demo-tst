@@ -11,7 +11,7 @@ export type User = {
     role: UserRole;
     branch_id: number | null;
     member_id?: number | null;
-    must_change_password?: boolean;
+    activated_at?: string | null;
     branch?: Branch | null;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;

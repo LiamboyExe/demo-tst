@@ -83,7 +83,7 @@ export type NfcCard = {
 export type MemberUser = {
     id: number;
     username: string | null;
-    must_change_password: boolean;
+    activated_at: string | null;
 };
 
 export type Paginated<T> = {

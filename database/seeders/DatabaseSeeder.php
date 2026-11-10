@@ -96,7 +96,7 @@ class DatabaseSeeder extends Seeder
                 'email' => $juan->email,
                 'password' => 'juan123456',
                 'role' => UserRole::Member,
-                'must_change_password' => true,
+                'activated_at' => now(),
                 'email_verified_at' => now(),
             ]);
         }
@@ -113,7 +113,7 @@ class DatabaseSeeder extends Seeder
             );
 
             foreach ($members as $row) {
-                Member::query()->updateOrCreate(
+                $member = Member::query()->updateOrCreate(
                     ['profile_slug' => $row['slug']],
                     [
                         'branch_id' => $territory->id,
@@ -129,6 +129,10 @@ class DatabaseSeeder extends Seeder
                         'approved' => $row['approved'],
                     ],
                 );
+
+                if ($row['slug'] !== 'cl-m1-santos-juan' && $member->user()->doesntExist()) {
+                    $member->issueTemporaryCredentials();
+                }
             }
         }
     }

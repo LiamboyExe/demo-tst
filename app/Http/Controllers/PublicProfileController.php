@@ -29,7 +29,12 @@ class PublicProfileController extends Controller
     {
         abort_unless($member->approved, 404);
 
-        $member->load(['branch', 'hood', 'nfcCard']);
+        $member->load([
+            'branch',
+            'hood',
+            'nfcCard',
+            'user' => fn ($query) => $query->select(['id', 'member_id', 'username', 'role', 'activated_at']),
+        ]);
 
         $user = $request->user();
 
@@ -50,6 +55,8 @@ class PublicProfileController extends Controller
             'member' => $member,
             'canViewSensitive' => $canViewSensitive,
             'sensitive' => $sensitive,
+            'isPendingActivation' => $member->user?->isPendingActivation() ?? false,
+            'hasAccount' => $member->user !== null,
         ]);
     }
 }

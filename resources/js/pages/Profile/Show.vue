@@ -21,6 +21,7 @@ import { formatDate } from '@/lib/format';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { login, logout } from '@/routes';
+import { show as activationShow } from '@/routes/activation';
 import { show as profileShow } from '@/routes/profile';
 import type { Member, User } from '@/types';
 
@@ -34,6 +35,8 @@ const props = defineProps<{
         birthdate: string | null;
         age: number | null;
     } | null;
+    isPendingActivation?: boolean;
+    hasAccount?: boolean;
 }>();
 
 const authUser = computed(() => usePage().props.auth?.user as User | undefined);
@@ -328,7 +331,7 @@ function badgeClass(value: string): string {
                     </div>
                 </div>
 
-                <!-- Anonymous visitor: invite the member to sign in. -->
+                <!-- Anonymous visitor: invite the member to sign in or activate. -->
                 <div v-else class="my-6 border-t border-zinc-800 pt-5">
                     <div
                         class="rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 p-4 text-center"
@@ -347,13 +350,17 @@ function badgeClass(value: string): string {
                             Contact details are only visible to this member.
                         </p>
                         <Button as-child class="mt-4 w-full">
-                            <Link :href="loginHref">
+                            <Link :href="isPendingActivation ? activationShow.url(member.profile_slug) : loginHref">
                                 <LockKeyhole class="size-4" />
                                 View Sensitive Information
                             </Link>
                         </Button>
                         <p class="mt-2 text-[11px] text-zinc-600">
-                            Member login — you will return to this profile.
+                            {{
+                                isPendingActivation
+                                    ? 'First-time setup — activate your account with your temporary credentials.'
+                                    : 'Member login — you will return to this profile.'
+                            }}
                         </p>
                     </div>
                 </div>

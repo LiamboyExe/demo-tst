@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\UserRole;
 use App\Models\Member;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -14,54 +15,67 @@ use Inertia\Inertia;
 class MemberAccountController extends Controller
 {
     /**
-     * Create a login account for an existing member.
+     * Issue (or reset) the member's temporary activation credentials.
      *
-     * Only administrators may create member accounts; territory admins are
-     * limited to members inside their own territory by the policy.
+     * Only administrators may do this; territory admins are limited to
+     * members inside their own territory by the policy. Accounts that have
+     * already been activated keep their permanent credentials.
      */
     public function store(Request $request, Member $member): RedirectResponse
     {
         Gate::authorize('createAccount', $member);
 
-        if ($member->user()->exists()) {
+        $account = $member->user()->first();
+
+        if ($account !== null && $account->isActivated()) {
             throw ValidationException::withMessages([
-                'username' => __(':name already has an account.', ['name' => $member->full_name]),
+                'username' => __(':name has already activated their account, so its credentials cannot be reset.', ['name' => $member->full_name]),
             ]);
         }
 
-        if (User::query()->where('email', $member->email)->exists()) {
+        if ($account === null && User::query()->where('email', $member->email)->exists()) {
             throw ValidationException::withMessages([
                 'username' => __('The email address :email is already used by another account.', ['email' => $member->email]),
             ]);
         }
 
-        $validated = $request->validate([
-            'username' => ['required', 'string', 'max:60', 'unique:users,username'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
-
-        $member->user()->create([
-            'name' => $member->full_name,
-            'username' => $validated['username'],
-            'email' => $member->email,
-            'password' => $validated['password'],
-            'role' => UserRole::Member,
-            'must_change_password' => true,
-            'email_verified_at' => now(),
-        ]);
+        DB::transaction(fn () => $member->issueTemporaryCredentials());
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __('Account created for :name. They must change their temporary password on first login.', ['name' => $member->full_name]),
+            'message' => __('Temporary credentials issued for :name. Open their details to copy them.', ['name' => $member->full_name]),
         ]);
 
         return back();
     }
 
     /**
+     * Reveal the member's pending temporary credentials so an authorized
+     * administrator can hand them to the member.
+     *
+     * These are never included in listings; they are fetched on demand
+     * here and disappear once the account is activated.
+     */
+    public function credentials(Request $request, Member $member): JsonResponse
+    {
+        Gate::authorize('viewTemporaryCredentials', $member);
+
+        $account = $member->user()->first();
+
+        if ($account === null || $account->isActivated() || blank($account->temp_username)) {
+            abort(404);
+        }
+
+        return response()->json([
+            'temp_username' => $account->temp_username,
+            'temp_password' => $account->temp_password,
+        ]);
+    }
+
+    /**
      * Remove the member's login account.
      */
-    public function destroy(Member $member): RedirectResponse
+    public function destroy(Request $request, Member $member): RedirectResponse
     {
         Gate::authorize('deleteAccount', $member);
 

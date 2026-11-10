@@ -24,7 +24,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property UserRole $role
  * @property int|null $branch_id
  * @property int|null $member_id
- * @property bool $must_change_password
+ * @property string|null $temp_username
+ * @property string|null $temp_password
+ * @property Carbon|null $activated_at
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -35,8 +37,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $updated_at
  * @property-read Member|null $member
  */
-#[Fillable(['name', 'username', 'email', 'password', 'role', 'branch_id', 'member_id', 'must_change_password'])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
+#[Fillable(['name', 'username', 'email', 'password', 'role', 'branch_id', 'member_id', 'temp_username', 'temp_password', 'activated_at'])]
+#[Hidden(['password', 'temp_username', 'temp_password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
@@ -52,8 +54,9 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'temp_password' => 'encrypted',
             'role' => UserRole::class,
-            'must_change_password' => 'boolean',
+            'activated_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
@@ -94,5 +97,25 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Main || $this->role === UserRole::Local;
+    }
+
+    /**
+     * Whether the account has finished activation. Admin accounts are always
+     * activated. Member accounts are activated once their permanent credentials
+     * are created.
+     */
+    public function isActivated(): bool
+    {
+        return (! $this->isMember() && $this->member_id === null) || $this->activated_at !== null;
+    }
+
+    /**
+     * Whether the account is waiting for the member to turn its temporary
+     * credentials into permanent ones on their NFC profile. Only member
+     * accounts go through activation.
+     */
+    public function isPendingActivation(): bool
+    {
+        return ($this->isMember() || $this->member_id !== null) && $this->activated_at === null;
     }
 }

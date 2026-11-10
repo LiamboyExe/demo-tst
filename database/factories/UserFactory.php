@@ -34,6 +34,7 @@ class UserFactory extends Factory
             'role' => UserRole::Local,
             'branch_id' => null,
             'email_verified_at' => now(),
+            'activated_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'two_factor_secret' => null,
@@ -83,6 +84,21 @@ class UserFactory extends Factory
             'role' => UserRole::Member,
             'branch_id' => null,
             'member_id' => $member->id,
+        ]);
+    }
+
+    /**
+     * Indicate that the member account is still pending activation, signing
+     * in only with the given temporary credentials until they are replaced.
+     */
+    public function pending(string $tempUsername, string $tempPassword): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'username' => null,
+            'password' => $tempPassword,
+            'temp_username' => $tempUsername,
+            'temp_password' => $tempPassword,
+            'activated_at' => null,
         ]);
     }
 

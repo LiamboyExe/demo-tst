@@ -36,7 +36,7 @@ test('public visitors see an NFC profile without sensitive data', function () {
 
 test('a member sees sensitive information on their own NFC profile', function () {
     $member = Member::factory()->for($this->north)->create();
-    $account = User::factory()->member($member)->create(['must_change_password' => false]);
+    $account = User::factory()->member($member)->create();
 
     $this->actingAs($account)
         ->get(route('profile.show', $member))
@@ -51,7 +51,7 @@ test('a member sees sensitive information on their own NFC profile', function ()
 test('a signed-in member cannot see another member sensitive information', function () {
     $juan = Member::factory()->for($this->north)->create();
     $pedro = Member::factory()->for($this->north)->create();
-    $pedroAccount = User::factory()->member($pedro)->create(['must_change_password' => false]);
+    $pedroAccount = User::factory()->member($pedro)->create();
 
     // Pedro scans Juan's NFC card while signed in.
     $this->actingAs($pedroAccount)
@@ -98,7 +98,6 @@ test('logging in from an NFC profile returns to that profile', function () {
     $member = Member::factory()->for($this->north)->create();
     $account = User::factory()->member($member)->create([
         'username' => 'juan',
-        'must_change_password' => false,
     ]);
 
     // The "View Sensitive Information" button links to the login page with
@@ -140,7 +139,7 @@ test('external intended destinations are ignored on login', function () {
 
 test('logging out removes access to sensitive information', function () {
     $member = Member::factory()->for($this->north)->create();
-    $account = User::factory()->member($member)->create(['must_change_password' => false]);
+    $account = User::factory()->member($member)->create();
 
     $this->actingAs($account);
 
@@ -163,7 +162,6 @@ test('an expired session requires authentication again', function () {
     $member = Member::factory()->for($this->north)->create();
     $account = User::factory()->member($member)->create([
         'username' => 'juan',
-        'must_change_password' => false,
     ]);
 
     $this->post(route('login.store'), [
