@@ -28,13 +28,18 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // MySQL requires the foreign key to be dropped before the unique
+        // index that backs it, and the index before the column.
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropForeign(['member_id']);
+        });
+
         Schema::table('users', function (Blueprint $table) {
             $table->dropUnique(['member_id']);
         });
 
         Schema::table('users', function (Blueprint $table) {
-            $table->dropConstrainedForeignId('member_id');
-            $table->dropColumn('must_change_password');
+            $table->dropColumn(['member_id', 'must_change_password']);
         });
     }
 };
