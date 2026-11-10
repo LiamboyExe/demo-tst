@@ -18,6 +18,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -152,9 +155,22 @@ class Member extends Model
             return $this->user()->create($attributes);
         }
 
-        $account->forceFill($attributes)->save();
+        DB::table('users')
+            ->where('id', $account->getKey())
+            ->update([
+                'name' => $attributes['name'],
+                'email' => $attributes['email'],
+                'username' => null,
+                'password' => Hash::make($tempPassword),
+                'role' => UserRole::Member->value,
+                'temp_username' => $tempUsername,
+                'temp_password' => Crypt::encryptString($tempPassword),
+                'activated_at' => null,
+                'email_verified_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-        return $account->refresh();
+        return User::query()->findOrFail($account->getKey());
     }
 
     /**
