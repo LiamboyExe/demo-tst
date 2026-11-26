@@ -5,9 +5,11 @@ use App\Http\Controllers\BranchController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MemberAccountController;
 use App\Http\Controllers\MemberActivationController;
+use App\Http\Controllers\MemberArchiveController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\NfcCardController;
 use App\Http\Controllers\PublicProfileController;
+use App\Http\Controllers\ReportController;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -27,7 +29,7 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 })->name('home');
 
-Route::get('p/{member:profile_slug}', [PublicProfileController::class, 'show'])->name('profile.show');
+Route::get('p/{profileMember:profile_slug}', [PublicProfileController::class, 'show'])->name('profile.show');
 
 // First-time account activation from the member's own NFC profile.
 Route::prefix('p/{member:profile_slug}/activate')->group(function () {
@@ -57,12 +59,22 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('members/{member}/account', [MemberAccountController::class, 'store'])->name('members.account.store');
     Route::get('members/{member}/account/credentials', [MemberAccountController::class, 'credentials'])->name('members.account.credentials');
     Route::delete('members/{member}/account', [MemberAccountController::class, 'destroy'])->name('members.account.destroy');
+
+    Route::get('archives', [MemberArchiveController::class, 'index'])->name('archives.index');
+    Route::patch('archives/{archivedMember}/restore', [MemberArchiveController::class, 'restore'])->name('archives.restore');
+    Route::delete('archives/{archivedMember}', [MemberArchiveController::class, 'destroy'])->name('archives.destroy');
     Route::resource('branches', BranchController::class)->except(['create', 'show', 'edit']);
+    Route::post('branches/{branch}/hoods', [BranchController::class, 'storeHood'])->name('branches.hoods.store');
 
     Route::get('nfc-cards', [NfcCardController::class, 'index'])->name('nfc-cards.index');
     Route::post('nfc-cards', [NfcCardController::class, 'store'])->name('nfc-cards.store');
     Route::patch('nfc-cards/{nfcCard}', [NfcCardController::class, 'update'])->name('nfc-cards.update');
     Route::delete('nfc-cards/{nfcCard}', [NfcCardController::class, 'destroy'])->name('nfc-cards.destroy');
+
+    Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::get('reports/export/{format}', [ReportController::class, 'export'])
+        ->whereIn('format', ['pdf', 'xlsx'])
+        ->name('reports.export');
 });
 
 require __DIR__.'/settings.php';

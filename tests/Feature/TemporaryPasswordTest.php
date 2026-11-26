@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\NfcCardStatus;
 use App\Models\Branch;
 use App\Models\Member;
+use App\Models\NfcCard;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -100,6 +102,57 @@ test('permanent username must be unique', function () {
             'password_confirmation' => 'SafePassword123!',
         ])
         ->assertSessionHasErrors('username');
+});
+
+test('completing activation activates the member NFC card', function () {
+    $card = NfcCard::factory()->for($this->member)->create([
+        'card_status' => NfcCardStatus::Inactive,
+    ]);
+
+    $this->withSession(['activation_user_id' => $this->account->id])
+        ->post(route('activation.store', $this->member), [
+            'username' => 'permanent_user',
+            'password' => 'SafePassword123!',
+            'password_confirmation' => 'SafePassword123!',
+        ])
+        ->assertRedirect(route('profile.show', $this->member));
+
+    expect($card->fresh()->card_status)->toBe(NfcCardStatus::Active);
+});
+
+test('completing activation leaves a lost NFC card inactive', function () {
+    $card = NfcCard::factory()->for($this->member)->create([
+        'card_status' => NfcCardStatus::Lost,
+    ]);
+
+    $this->withSession(['activation_user_id' => $this->account->id])
+        ->post(route('activation.store', $this->member), [
+            'username' => 'permanent_user',
+            'password' => 'SafePassword123!',
+            'password_confirmation' => 'SafePassword123!',
+        ])
+        ->assertRedirect(route('profile.show', $this->member));
+
+    expect($card->fresh()->card_status)->toBe(NfcCardStatus::Lost);
+});
+
+test('completing activation assigns an NFC card when the member has none', function () {
+    expect($this->member->nfcCard()->exists())->toBeFalse();
+
+    $this->withSession(['activation_user_id' => $this->account->id])
+        ->post(route('activation.store', $this->member), [
+            'username' => 'permanent_user',
+            'password' => 'SafePassword123!',
+            'password_confirmation' => 'SafePassword123!',
+        ])
+        ->assertRedirect(route('profile.show', $this->member));
+
+    $card = $this->member->nfcCard()->first();
+
+    expect($card)->not->toBeNull()
+        ->and($card->card_status)->toBe(NfcCardStatus::Active)
+        ->and($card->profile_url)->toBe(route('profile.show', $this->member))
+        ->and($this->account->fresh()->isActivated())->toBeTrue();
 });
 
 test('completing activation saves permanent credentials, signs in member, and unlocks sensitive profile', function () {

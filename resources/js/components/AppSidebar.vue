@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Building2, CreditCard, LayoutGrid, Shield, Users } from '@lucide/vue';
+import {
+    Archive,
+    Building2,
+    ChartBar,
+    CreditCard,
+    LayoutGrid,
+    Shield,
+    Users,
+} from '@lucide/vue';
 import { computed, onMounted, onUnmounted } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -16,9 +24,11 @@ import {
     useSidebar,
 } from '@/components/ui/sidebar';
 import { account, dashboard } from '@/routes';
+import archives from '@/routes/archives';
 import branches from '@/routes/branches';
 import members from '@/routes/members';
 import nfcCards from '@/routes/nfc-cards';
+import reports from '@/routes/reports';
 import type { NavItem, User } from '@/types';
 
 const { isMobile, setOpenMobile } = useSidebar();
@@ -59,6 +69,11 @@ const mainNavItems = computed<NavItem[]>(() => [
         icon: Users,
     },
     {
+        title: 'Archives',
+        href: archives.index(),
+        icon: Archive,
+    },
+    {
         title: isMainAdmin.value ? 'Territories' : 'Territory',
         href: branches.index(),
         icon: Building2,
@@ -67,6 +82,11 @@ const mainNavItems = computed<NavItem[]>(() => [
         title: 'NFC Cards',
         href: nfcCards.index(),
         icon: CreditCard,
+    },
+    {
+        title: 'Reports',
+        href: reports.index(),
+        icon: ChartBar,
     },
     {
         title: 'My Account',

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\NfcCardStatus;
 use App\Models\Member;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -129,7 +130,7 @@ class MemberActivationController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($account, $validated): void {
+        DB::transaction(function () use ($member, $account, $validated): void {
             $account->forceFill([
                 'username' => $validated['username'],
                 'password' => $validated['password'],
@@ -137,6 +138,22 @@ class MemberActivationController extends Controller
                 'temp_password' => null,
                 'activated_at' => now(),
             ])->save();
+
+            $card = $member->nfcCard()->first();
+
+            if ($card === null) {
+                // An activated account always gets a card so the member can
+                // be reached on their NFC profile right away.
+                $member->nfcCard()->create([
+                    'card_uid' => 'NFC-'.Str::upper(Str::random(8)),
+                    'profile_url' => route('profile.show', $member),
+                    'card_status' => NfcCardStatus::Active,
+                    'issued_date' => now()->toDateString(),
+                ]);
+            } elseif ($card->card_status !== NfcCardStatus::Lost) {
+                // A lost card stays blocked; activation must not silently revive it.
+                $card->forceFill(['card_status' => NfcCardStatus::Active])->save();
+            }
         });
 
         $request->session()->forget('activation_user_id');

@@ -170,3 +170,41 @@
         @apply bg-background text-foreground;
     }
 }
+
+@media print {
+    @page {
+        size: landscape;
+        margin: 10mm;
+    }
+
+    body.report-printing [data-slot='sidebar'],
+    body.report-printing header,
+    body.report-printing .no-print {
+        display: none !important;
+    }
+
+    body.report-printing [data-slot='sidebar-inset'] {
+        margin: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    body.report-printing .reports-page {
+        gap: 12px !important;
+        padding: 0 !important;
+    }
+
+    body.report-printing .reports-page table {
+        font-size: 9px;
+    }
+
+    body.report-printing .reports-page th,
+    body.report-printing .reports-page td {
+        padding: 4px 6px !important;
+    }
+
+    body.report-printing .reports-page .overflow-x-auto,
+    body.report-printing .reports-page .overflow-auto {
+        overflow: visible !important;
+    }
+}

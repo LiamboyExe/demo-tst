@@ -63,6 +63,7 @@ export type Member = {
     nfc_card?: NfcCard | null;
     user?: MemberUser | null;
     profile_url?: string;
+    deleted_at: string | null;
     created_at: string;
     updated_at: string;
 };

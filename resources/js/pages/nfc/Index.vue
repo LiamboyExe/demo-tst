@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import { formatDate, today } from '@/lib/format';
 import {
     destroy as destroyCard,
@@ -161,19 +162,7 @@ function destroy(): void {
 
 async function copyLink(url: string): Promise<void> {
     try {
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(url);
-        } else {
-            const el = document.createElement('textarea');
-            el.value = url;
-            el.style.position = 'absolute';
-            el.style.left = '-9999px';
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
-        }
-
+        await copyTextToClipboard(url);
         toast.success('Profile link copied.');
     } catch {
         toast.error('Could not copy the link.');

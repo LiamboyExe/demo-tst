@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
+    Archive,
     Building2,
     Check,
     Copy,
@@ -17,6 +18,7 @@ import {
     ZoomOut,
 } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import InputError from '@/components/InputError.vue';
 import PaginationFooter from '@/components/PaginationFooter.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
@@ -36,7 +38,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import { formatDate, today } from '@/lib/format';
+import { index as archivesIndex } from '@/routes/archives';
 import { index as branchesIndex } from '@/routes/branches';
 import {
     credentials as accountCredentials,
@@ -141,8 +145,8 @@ const memberForm = useForm({
     approved: true,
 });
 
-const deleteOpen = ref(false);
-const deleteTarget = ref<Member | null>(null);
+const archiveOpen = ref(false);
+const archiveTarget = ref<Member | null>(null);
 
 const avatarPreview = ref<string | null>(null);
 const avatarInput = ref<HTMLInputElement | null>(null);
@@ -695,21 +699,21 @@ function submit(): void {
     }
 }
 
-function confirmDelete(member: Member): void {
-    deleteTarget.value = member;
-    deleteOpen.value = true;
+function confirmArchive(member: Member): void {
+    archiveTarget.value = member;
+    archiveOpen.value = true;
 }
 
-function destroy(): void {
-    if (!deleteTarget.value) {
+function archive(): void {
+    if (!archiveTarget.value) {
         return;
     }
 
-    router.delete(destroyMember(deleteTarget.value.id).url, {
+    router.delete(destroyMember(archiveTarget.value.id).url, {
         preserveScroll: true,
         onSuccess: () => {
-            deleteOpen.value = false;
-            deleteTarget.value = null;
+            archiveOpen.value = false;
+            archiveTarget.value = null;
         },
     });
 }
@@ -744,18 +748,7 @@ async function loadCredentials(memberId: number): Promise<void> {
 
 async function copyToClipboard(text: string, type: 'username' | 'password'): Promise<void> {
     try {
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(text);
-        } else {
-            const el = document.createElement('textarea');
-            el.value = text;
-            el.style.position = 'absolute';
-            el.style.left = '-9999px';
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
-        }
+        await copyTextToClipboard(text);
 
         if (type === 'username') {
             copiedUsername.value = true;
@@ -770,6 +763,7 @@ async function copyToClipboard(text: string, type: 'username' | 'password'): Pro
         }
     } catch (e) {
         console.error('Failed to copy', e);
+        toast.error('Could not copy. Please select and copy manually.');
     }
 }
 
@@ -924,10 +918,18 @@ onUnmounted(() => {
                 </p>
             </div>
 
-            <Button class="w-full sm:w-auto" @click="openCreate">
-                <Plus class="size-4" />
-                Add member
-            </Button>
+            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <Button variant="outline" as-child class="w-full sm:w-auto">
+                    <Link :href="archivesIndex()">
+                        <Archive class="size-4" />
+                        Archives
+                    </Link>
+                </Button>
+                <Button class="w-full sm:w-auto" @click="openCreate">
+                    <Plus class="size-4" />
+                    Add member
+                </Button>
+            </div>
         </div>
 
         <Card>
@@ -1165,12 +1167,12 @@ onUnmounted(() => {
                     <Button
                         variant="outline"
                         size="sm"
-                        class="flex-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        aria-label="Delete member"
-                        @click="confirmDelete(member)"
+                        class="flex-1"
+                        aria-label="Archive member"
+                        @click="confirmArchive(member)"
                     >
-                        <Trash2 class="size-3.5" />
-                        Delete
+                        <Archive class="size-3.5" />
+                        Archive
                     </Button>
                 </div>
             </Card>
@@ -1418,11 +1420,10 @@ onUnmounted(() => {
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
-                                        aria-label="Delete member"
-                                        class="text-destructive hover:text-destructive"
-                                        @click="confirmDelete(member)"
+                                        aria-label="Archive member"
+                                        @click="confirmArchive(member)"
                                     >
-                                        <Trash2 class="size-4" />
+                                        <Archive class="size-4" />
                                     </Button>
                                 </div>
                             </td>
@@ -2227,21 +2228,25 @@ onUnmounted(() => {
         </DialogContent>
     </Dialog>
 
-    <Dialog v-model:open="deleteOpen">
+    <Dialog v-model:open="archiveOpen">
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>Delete member?</DialogTitle>
+                <DialogTitle>Archive member?</DialogTitle>
                 <DialogDescription>
-                    {{ deleteTarget?.full_name }} and their NFC card will be
-                    permanently removed.
+                    {{
+                        archiveTarget
+                            ? `${archiveTarget.full_name} will be removed from the members list. Their record and NFC card are kept, and they can be restored from Archives.`
+                            : 'This member will be removed from the members list.'
+                    }}
                 </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-                <Button variant="secondary" @click="deleteOpen = false">
+                <Button variant="secondary" @click="archiveOpen = false">
                     Cancel
                 </Button>
-                <Button variant="destructive" @click="destroy">
-                    Delete member
+                <Button @click="archive">
+                    <Archive class="size-4" />
+                    Archive member
                 </Button>
             </DialogFooter>
         </DialogContent>

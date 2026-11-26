@@ -83,9 +83,25 @@ class MemberPolicy
     }
 
     /**
-     * Determine whether the user can delete the given member.
+     * Determine whether the user can archive the given member.
      */
     public function delete(User $user, Member $member): bool
+    {
+        return $this->view($user, $member);
+    }
+
+    /**
+     * Determine whether the user can restore the given archived member.
+     */
+    public function restore(User $user, Member $member): bool
+    {
+        return $this->view($user, $member);
+    }
+
+    /**
+     * Determine whether the user can permanently delete the given member.
+     */
+    public function forceDelete(User $user, Member $member): bool
     {
         return $this->view($user, $member);
     }

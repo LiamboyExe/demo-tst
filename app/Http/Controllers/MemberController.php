@@ -14,7 +14,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -137,10 +136,10 @@ class MemberController extends Controller
         $data = Arr::except($validated, ['avatar', 'remove_avatar']);
 
         if ($request->hasFile('avatar')) {
-            $this->deleteAvatar($member);
+            $member->deleteAvatarFile();
             $data['avatar_path'] = $request->file('avatar')->store('avatars', 'public');
         } elseif ($request->boolean('remove_avatar')) {
-            $this->deleteAvatar($member);
+            $member->deleteAvatarFile();
             $data['avatar_path'] = null;
         }
 
@@ -158,19 +157,20 @@ class MemberController extends Controller
     }
 
     /**
-     * Delete the given member.
+     * Archive the given member.
+     *
+     * The record, login account, avatar and NFC card are kept so the member
+     * can be restored later from the archives.
      */
     public function destroy(Member $member): RedirectResponse
     {
         Gate::authorize('delete', $member);
 
-        $this->deleteAvatar($member);
-
         $member->delete();
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __('Member deleted.'),
+            'message' => __(':name was archived. You can restore them from Archives.', ['name' => $member->full_name]),
         ]);
 
         return back();
@@ -200,16 +200,6 @@ class MemberController extends Controller
     }
 
     /**
-     * Delete the member's stored avatar file, if one exists.
-     */
-    private function deleteAvatar(Member $member): void
-    {
-        if (filled($member->avatar_path)) {
-            Storage::disk('public')->delete($member->avatar_path);
-        }
-    }
-
-    /**
      * Email rules that skip the DNS lookup for the demo domain so the seeded
      * members can still be edited.
      *
@@ -235,7 +225,7 @@ class MemberController extends Controller
 
         do {
             $slug = $base.'-'.Str::lower(Str::random(6));
-        } while (Member::query()->where('profile_slug', $slug)->exists());
+        } while (Member::withTrashed()->where('profile_slug', $slug)->exists());
 
         return $slug;
     }

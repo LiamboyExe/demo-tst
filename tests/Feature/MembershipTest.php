@@ -195,7 +195,7 @@ test('branch admin cannot update a member from another branch', function () {
         ->assertForbidden();
 });
 
-test('main admin can update and delete members from any branch', function () {
+test('main admin can update and archive members from any branch', function () {
     $member = Member::factory()->for($this->south)->create();
 
     $this->actingAs($this->mainAdmin)
@@ -217,7 +217,7 @@ test('main admin can update and delete members from any branch', function () {
         ->delete(route('members.destroy', $member))
         ->assertRedirect();
 
-    $this->assertDatabaseMissing('members', ['id' => $member->id]);
+    $this->assertSoftDeleted('members', ['id' => $member->id]);
 });
 
 test('branch admin can only manage their own branch', function () {

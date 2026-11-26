@@ -32,6 +32,7 @@ import {
     store as storeBranch,
     update as updateBranch,
 } from '@/routes/branches';
+import { store as storeHood } from '@/routes/branches/hoods';
 import { index as membersIndex } from '@/routes/members';
 import type { Branch } from '@/types';
 
@@ -51,9 +52,15 @@ setLayoutProps({
 
 const createOpen = ref(false);
 const editOpen = ref(false);
+const hoodOpen = ref(false);
 const deleteOpen = ref(false);
 const editing = ref<Branch | null>(null);
+const hoodTarget = ref<Branch | null>(null);
 const deleteTarget = ref<Branch | null>(null);
+
+const hoodForm = useForm({
+    name: '',
+});
 
 const createForm = useForm({
     name: '',
@@ -133,6 +140,28 @@ function submitEdit(): void {
         onSuccess: () => {
             editOpen.value = false;
             editing.value = null;
+        },
+    });
+}
+
+function openHoodCreate(branch: Branch): void {
+    hoodTarget.value = branch;
+    hoodForm.reset();
+    hoodForm.clearErrors();
+    hoodOpen.value = true;
+}
+
+function submitHood(): void {
+    if (!hoodTarget.value) {
+        return;
+    }
+
+    hoodForm.post(storeHood(hoodTarget.value.id).url, {
+        preserveScroll: true,
+        onSuccess: () => {
+            hoodOpen.value = false;
+            hoodTarget.value = null;
+            hoodForm.reset();
         },
     });
 }
@@ -351,6 +380,14 @@ function destroy(): void {
                             </Link>
                         </Button>
                         <template v-if="isMainAdmin">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                @click="openHoodCreate(branch)"
+                            >
+                                <Plus class="size-3.5" />
+                                Add hood
+                            </Button>
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -625,6 +662,47 @@ function destroy(): void {
                     </Button>
                     <Button type="submit" :disabled="editForm.processing">
                         Save changes
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="hoodOpen">
+        <DialogContent>
+            <form class="space-y-4" @submit.prevent="submitHood">
+                <DialogHeader>
+                    <DialogTitle>Add hood</DialogTitle>
+                    <DialogDescription>
+                        {{
+                            hoodTarget
+                                ? `Add a hood to ${hoodTarget.name}.`
+                                : 'Add a hood to this territory.'
+                        }}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div class="space-y-1.5">
+                    <Label for="hood_name">Hood name</Label>
+                    <Input
+                        id="hood_name"
+                        v-model="hoodForm.name"
+                        placeholder="e.g. Calle Locos"
+                        autofocus
+                    />
+                    <InputError :message="hoodForm.errors.name" />
+                </div>
+
+                <DialogFooter>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        @click="hoodOpen = false"
+                    >
+                        Cancel
+                    </Button>
+                    <Button type="submit" :disabled="hoodForm.processing">
+                        Add hood
                     </Button>
                 </DialogFooter>
             </form>

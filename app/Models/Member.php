@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -41,6 +42,7 @@ use Illuminate\Support\Str;
  * @property Carbon $join_date
  * @property string $profile_slug
  * @property bool $approved
+ * @property Carbon|null $deleted_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read string $full_name
@@ -70,7 +72,7 @@ use Illuminate\Support\Str;
 class Member extends Model
 {
     /** @use HasFactory<MemberFactory> */
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * Get the attributes that should be cast.
@@ -185,6 +187,16 @@ class Member extends Model
         } while (User::query()->where('temp_username', $username)->orWhere('username', $username)->exists());
 
         return $username;
+    }
+
+    /**
+     * Delete the member's stored avatar file, if one exists.
+     */
+    public function deleteAvatarFile(): void
+    {
+        if (filled($this->avatar_path)) {
+            Storage::disk('public')->delete($this->avatar_path);
+        }
     }
 
     /**

@@ -21,15 +21,29 @@ class PublicProfileController extends Controller
     /**
      * Show the public profile for an approved member.
      *
+     * Archived members keep their NFC link working, but the page only says
+     * that they are no longer an active member instead of returning a 404.
+     *
      * The NFC profile stays public, but sensitive contact details are only
      * sent to the browser when the authenticated account belongs to this
      * exact member (users.member_id) or an admin allowed to view them.
      */
-    public function show(Request $request, Member $member): Response
+    public function show(Request $request, Member $profileMember): Response
     {
-        abort_unless($member->approved, 404);
+        if ($profileMember->trashed()) {
+            return Inertia::render('Profile/Archived', [
+                'member' => [
+                    'full_name' => $profileMember->full_name,
+                    'initials' => $profileMember->initials,
+                    'avatar_url' => $profileMember->avatar_url,
+                    'archived_on' => $profileMember->deleted_at?->format('Y-m-d'),
+                ],
+            ]);
+        }
 
-        $member->load([
+        abort_unless($profileMember->approved, 404);
+
+        $profileMember->load([
             'branch',
             'hood',
             'nfcCard',
@@ -39,24 +53,24 @@ class PublicProfileController extends Controller
         $user = $request->user();
 
         $canViewSensitive = $user !== null
-            && Gate::forUser($user)->allows('viewSensitive', $member);
+            && Gate::forUser($user)->allows('viewSensitive', $profileMember);
 
         $sensitive = $canViewSensitive ? [
-            'email' => $member->email,
-            'phone' => $member->phone,
-            'address' => $member->address,
-            'birthdate' => $member->birthdate?->format('Y-m-d'),
-            'age' => $member->age,
+            'email' => $profileMember->email,
+            'phone' => $profileMember->phone,
+            'address' => $profileMember->address,
+            'birthdate' => $profileMember->birthdate?->format('Y-m-d'),
+            'age' => $profileMember->age,
         ] : null;
 
-        $member->makeHidden(self::SENSITIVE_ATTRIBUTES);
+        $profileMember->makeHidden(self::SENSITIVE_ATTRIBUTES);
 
         return Inertia::render('Profile/Show', [
-            'member' => $member,
+            'member' => $profileMember,
             'canViewSensitive' => $canViewSensitive,
             'sensitive' => $sensitive,
-            'isPendingActivation' => $member->user?->isPendingActivation() ?? false,
-            'hasAccount' => $member->user !== null,
+            'isPendingActivation' => $profileMember->user?->isPendingActivation() ?? false,
+            'hasAccount' => $profileMember->user !== null,
         ]);
     }
 }

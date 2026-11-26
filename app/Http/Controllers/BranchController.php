@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -170,6 +171,32 @@ class BranchController extends Controller
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => __('Territory ":name" was updated.', ['name' => $branch->name]),
+        ]);
+
+        return back();
+    }
+
+    /**
+     * Add a hood to the given territory.
+     */
+    public function storeHood(Request $request, Branch $branch): RedirectResponse
+    {
+        Gate::authorize('update', $branch);
+
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('hoods', 'name')->where('branch_id', $branch->id),
+            ],
+        ]);
+
+        $hood = $branch->hoods()->create(['name' => $validated['name']]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('Hood ":hood" was added to :branch.', ['hood' => $hood->name, 'branch' => $branch->name]),
         ]);
 
         return back();
